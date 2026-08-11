@@ -11,6 +11,8 @@ is preserved in [CHANGELOG_UPSTREAM.md](./CHANGELOG_UPSTREAM.md).
 
 ## [Unreleased]
 
+## [v2.0.0] - 2026-08-11
+
 ### Added
 
 - [agnostic/platform/opentui] **Breaking:** `KeyEvent` gained a `super` field
