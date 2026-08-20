@@ -5,6 +5,9 @@
 
 // IMPORTS ---------------------------------------------------------------------
 
+import gleam/list
+import gleam/option.{type Option, None, Some}
+
 @target(javascript)
 import agnostic/platform.{type Platform}
 
@@ -31,6 +34,86 @@ pub type Renderer
 ///
 pub type ElementFactory =
   fn(Renderer) -> Node
+
+/// A signal name, as accepted by [`exit_signals`](#exit_signals).
+///
+pub type Signal {
+  Sigabrt
+  Sigalrm
+  Sigbus
+  Sigchld
+  Sigcont
+  Sigfpe
+  Sighup
+  Sigill
+  Sigint
+  Sigio
+  Sigiot
+  Sigpipe
+  Sigpoll
+  Sigprof
+  Sigpwr
+  Sigquit
+  Sigsegv
+  Sigstkflt
+  Sigsys
+  Sigterm
+  Sigtrap
+  Sigtstp
+  Sigttin
+  Sigttou
+  Sigunused
+  Sigurg
+  Sigusr1
+  Sigusr2
+  Sigvtalrm
+  Sigwinch
+  Sigxcpu
+  Sigxfsz
+  Sigbreak
+  Siglost
+  Siginfo
+}
+
+fn signal_to_string(signal: Signal) -> String {
+  case signal {
+    Sigabrt -> "SIGABRT"
+    Sigalrm -> "SIGALRM"
+    Sigbus -> "SIGBUS"
+    Sigchld -> "SIGCHLD"
+    Sigcont -> "SIGCONT"
+    Sigfpe -> "SIGFPE"
+    Sighup -> "SIGHUP"
+    Sigill -> "SIGILL"
+    Sigint -> "SIGINT"
+    Sigio -> "SIGIO"
+    Sigiot -> "SIGIOT"
+    Sigpipe -> "SIGPIPE"
+    Sigpoll -> "SIGPOLL"
+    Sigprof -> "SIGPROF"
+    Sigpwr -> "SIGPWR"
+    Sigquit -> "SIGQUIT"
+    Sigsegv -> "SIGSEGV"
+    Sigstkflt -> "SIGSTKFLT"
+    Sigsys -> "SIGSYS"
+    Sigterm -> "SIGTERM"
+    Sigtrap -> "SIGTRAP"
+    Sigtstp -> "SIGTSTP"
+    Sigttin -> "SIGTTIN"
+    Sigttou -> "SIGTTOU"
+    Sigunused -> "SIGUNUSED"
+    Sigurg -> "SIGURG"
+    Sigusr1 -> "SIGUSR1"
+    Sigusr2 -> "SIGUSR2"
+    Sigvtalrm -> "SIGVTALRM"
+    Sigwinch -> "SIGWINCH"
+    Sigxcpu -> "SIGXCPU"
+    Sigxfsz -> "SIGXFSZ"
+    Sigbreak -> "SIGBREAK"
+    Siglost -> "SIGLOST"
+    Siginfo -> "SIGINFO"
+  }
+}
 
 // EFFECT PHASES ---------------------------------------------------------------
 
@@ -63,6 +146,7 @@ pub const after_flush_phase = "after_flush"
 pub opaque type Config {
   Config(
     exit_on_ctrl_c: Bool,
+    exit_signals: Option(List(String)),
     use_alternate_screen: Bool,
     use_mouse: Bool,
     target_fps: Int,
@@ -88,6 +172,25 @@ pub opaque type Config {
 ///
 pub fn exit_on_ctrl_c(config: Config, value: Bool) -> Config {
   Config(..config, exit_on_ctrl_c: value)
+}
+
+/// Set which signals tear the renderer down, replacing OpenTUI's default list.
+///
+/// This selects *which* signals are handled, not what happens: every listed
+/// signal destroys the renderer, including ones that normally mean something
+/// other than "quit" — `Sigchld` destroys it whenever a subprocess exits,
+/// `Sigwinch` whenever the terminal is resized, `Sigtstp` instead of
+/// suspending. Use
+/// [`opentui/effect.on_destroy`](./opentui/effect.html#on_destroy) to run your
+/// own cleanup when it does.
+///
+/// Passing an empty list is not "signals are ignored" — it registers no
+/// listener at all, so each signal's default disposition applies instead:
+/// most terminate the process with no teardown, leaving the terminal in the
+/// alternate screen and in raw mode. `on_destroy` does not run on that path.
+///
+pub fn exit_signals(config: Config, value: List(Signal)) -> Config {
+  Config(..config, exit_signals: Some(list.map(value, signal_to_string)))
 }
 
 /// Set whether to use the alternate screen buffer.
@@ -207,6 +310,7 @@ pub fn register_element(
 pub fn default_config() -> Config {
   Config(
     exit_on_ctrl_c: True,
+    exit_signals: None,
     use_alternate_screen: True,
     use_mouse: True,
     target_fps: 30,

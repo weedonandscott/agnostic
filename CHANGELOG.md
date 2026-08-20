@@ -11,6 +11,11 @@ is preserved in [CHANGELOG_UPSTREAM.md](./CHANGELOG_UPSTREAM.md).
 
 ## [Unreleased]
 
+### Added
+
+- [agnostic/platform/opentui] Added `Signal` and `exit_signals`, forwarding
+  OpenTUI's `exitSignals` — previously its default list always applied.
+
 ## [v2.0.0] - 2026-08-11
 
 ### Added

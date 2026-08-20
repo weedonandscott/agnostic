@@ -33,6 +33,11 @@ import {
   List$Empty,
   List$NonEmpty,
 } from "../../gleam.mjs";
+import {
+  is_some,
+  Option$Some$0,
+  type Option$,
+} from "../../../gleam_stdlib/gleam/option.mjs";
 import type { Result } from "../../prelude.mjs";
 import { none } from "../../../agnostic/agnostic/element.mjs";
 import { insertMetadataChild } from "../../../agnostic/agnostic/vdom/reconciler.ffi.mjs";
@@ -64,6 +69,7 @@ interface TuiNode extends Renderable {
 
 interface RendererConfig {
   exit_on_ctrl_c: boolean;
+  exit_signals: Option$<Iterable<string>>;
   use_alternate_screen: boolean;
   use_mouse: boolean;
   target_fps: number;
@@ -281,6 +287,9 @@ function create_renderer(config: RendererConfig): Promise<CliRenderer> {
   };
   const bg = unwrapResult<string>(config.background_color);
   if (bg) opts.backgroundColor = bg;
+  if (is_some(config.exit_signals)) {
+    opts.exitSignals = Array.from(Option$Some$0(config.exit_signals));
+  }
   if (config.use_kitty_keyboard) {
     opts.useKittyKeyboard = { disambiguate: true, alternateKeys: true };
   }
