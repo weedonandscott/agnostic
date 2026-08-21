@@ -39,11 +39,7 @@ var CustomType = class {
 };
 var List = class {
   static fromArray(array3, tail) {
-    let t = tail || new Empty();
-    for (let i = array3.length - 1; i >= 0; --i) {
-      t = new NonEmpty(array3[i], t);
-    }
-    return t;
+    return toList(array3, tail);
   }
   [Symbol.iterator]() {
     return new ListIterator(this);
@@ -75,7 +71,11 @@ function prepend(element3, tail) {
   return new NonEmpty(element3, tail);
 }
 function toList(elements, tail) {
-  return List.fromArray(elements, tail);
+  let t = tail || List$Empty$const;
+  for (let i = elements.length - 1; i >= 0; --i) {
+    t = new NonEmpty(elements[i], t);
+  }
+  return t;
 }
 var ListIterator = class {
   #current;
@@ -94,6 +94,7 @@ var ListIterator = class {
 };
 var Empty = class extends List {
 };
+var List$Empty$const = new Empty();
 var NonEmpty = class extends List {
   constructor(head, tail) {
     super();
@@ -135,13 +136,21 @@ var Result$Error = (detail) => new Error(detail);
 // build/dev/javascript/gleam_stdlib/gleam/order.mjs
 var Lt = class extends CustomType {
 };
-var Order$Lt = () => new Lt();
+var Order$Lt$const = new Lt();
+var Order$Lt = () => Order$Lt$const;
 var Eq = class extends CustomType {
 };
-var Order$Eq = () => new Eq();
+var Order$Eq$const = new Eq();
+var Order$Eq = () => Order$Eq$const;
 var Gt = class extends CustomType {
 };
-var Order$Gt = () => new Gt();
+var Order$Gt$const = new Gt();
+var Order$Gt = () => Order$Gt$const;
+
+// build/dev/javascript/gleam_stdlib/gleam/option.mjs
+var None = class extends CustomType {
+};
+var Option$None$const = new None();
 
 // build/dev/javascript/gleam_stdlib/dict.mjs
 var bits = 5;
@@ -152,8 +161,10 @@ var generationKey = Symbol();
 // build/dev/javascript/gleam_stdlib/gleam/list.mjs
 var Ascending = class extends CustomType {
 };
+var Sorting$Ascending$const = new Ascending();
 var Descending = class extends CustomType {
 };
+var Sorting$Descending$const = new Descending();
 function reverse_and_prepend(loop$prefix, loop$suffix) {
   while (true) {
     let prefix = loop$prefix;
@@ -169,7 +180,7 @@ function reverse_and_prepend(loop$prefix, loop$suffix) {
   }
 }
 function reverse(list4) {
-  return reverse_and_prepend(list4, toList([]));
+  return reverse_and_prepend(list4, List$Empty$const);
 }
 function merge_descendings(loop$list1, loop$list2, loop$compare, loop$acc) {
   while (true) {
@@ -228,7 +239,7 @@ function merge_descending_pairs(loop$sequences, loop$compare, loop$acc) {
           descending1,
           descending2,
           compare4,
-          toList([])
+          List$Empty$const
         );
         loop$sequences = rest$1;
         loop$compare = compare4;
@@ -294,7 +305,7 @@ function merge_ascending_pairs(loop$sequences, loop$compare, loop$acc) {
           ascending1,
           ascending2,
           compare4,
-          toList([])
+          List$Empty$const
         );
         loop$sequences = rest$1;
         loop$compare = compare4;
@@ -316,9 +327,13 @@ function merge_all(loop$sequences, loop$direction, loop$compare) {
         let sequence = sequences2.head;
         return sequence;
       } else {
-        let sequences$1 = merge_ascending_pairs(sequences2, compare4, toList([]));
+        let sequences$1 = merge_ascending_pairs(
+          sequences2,
+          compare4,
+          List$Empty$const
+        );
         loop$sequences = sequences$1;
-        loop$direction = new Descending();
+        loop$direction = Sorting$Descending$const;
         loop$compare = compare4;
       }
     } else {
@@ -327,9 +342,13 @@ function merge_all(loop$sequences, loop$direction, loop$compare) {
         let sequence = sequences2.head;
         return reverse(sequence);
       } else {
-        let sequences$1 = merge_descending_pairs(sequences2, compare4, toList([]));
+        let sequences$1 = merge_descending_pairs(
+          sequences2,
+          compare4,
+          List$Empty$const
+        );
         loop$sequences = sequences$1;
-        loop$direction = new Ascending();
+        loop$direction = Sorting$Ascending$const;
         loop$compare = compare4;
       }
     }
@@ -385,11 +404,11 @@ function sequences(loop$list, loop$compare, loop$growing, loop$direction, loop$p
             let _block$1;
             let $1 = compare4(new$1, next);
             if ($1 instanceof Lt) {
-              _block$1 = new Ascending();
+              _block$1 = Sorting$Ascending$const;
             } else if ($1 instanceof Eq) {
-              _block$1 = new Ascending();
+              _block$1 = Sorting$Ascending$const;
             } else {
-              _block$1 = new Descending();
+              _block$1 = Sorting$Descending$const;
             }
             let direction$1 = _block$1;
             loop$list = rest$2;
@@ -416,11 +435,11 @@ function sequences(loop$list, loop$compare, loop$growing, loop$direction, loop$p
           let _block$1;
           let $1 = compare4(new$1, next);
           if ($1 instanceof Lt) {
-            _block$1 = new Ascending();
+            _block$1 = Sorting$Ascending$const;
           } else if ($1 instanceof Eq) {
-            _block$1 = new Ascending();
+            _block$1 = Sorting$Ascending$const;
           } else {
-            _block$1 = new Descending();
+            _block$1 = Sorting$Descending$const;
           }
           let direction$1 = _block$1;
           loop$list = rest$2;
@@ -446,11 +465,11 @@ function sequences(loop$list, loop$compare, loop$growing, loop$direction, loop$p
           let _block$1;
           let $1 = compare4(new$1, next);
           if ($1 instanceof Lt) {
-            _block$1 = new Ascending();
+            _block$1 = Sorting$Ascending$const;
           } else if ($1 instanceof Eq) {
-            _block$1 = new Ascending();
+            _block$1 = Sorting$Ascending$const;
           } else {
-            _block$1 = new Descending();
+            _block$1 = Sorting$Descending$const;
           }
           let direction$1 = _block$1;
           loop$list = rest$2;
@@ -485,11 +504,11 @@ function sort(list4, compare4) {
       let _block;
       let $1 = compare4(x, y);
       if ($1 instanceof Lt) {
-        _block = new Ascending();
+        _block = Sorting$Ascending$const;
       } else if ($1 instanceof Eq) {
-        _block = new Ascending();
+        _block = Sorting$Ascending$const;
       } else {
-        _block = new Descending();
+        _block = Sorting$Descending$const;
       }
       let direction = _block;
       let sequences$1 = sequences(
@@ -498,9 +517,9 @@ function sort(list4, compare4) {
         toList([x]),
         direction,
         y,
-        toList([])
+        List$Empty$const
       );
-      return merge_all(sequences$1, new Ascending(), compare4);
+      return merge_all(sequences$1, Sorting$Ascending$const, compare4);
     }
   }
 }
@@ -531,13 +550,31 @@ var trim_start_regex = /* @__PURE__ */ new RegExp(
 );
 var trim_end_regex = /* @__PURE__ */ new RegExp(`[${unicode_whitespaces}]*$`);
 
+// build/dev/javascript/gleam_stdlib/gleam/string_tree.mjs
+var All = class extends CustomType {
+};
+var Direction$All$const = new All();
+
+// build/dev/javascript/gleam_stdlib/gleam/string.mjs
+var Leading = class extends CustomType {
+};
+var Direction$Leading$const = new Leading();
+var Trailing = class extends CustomType {
+};
+var Direction$Trailing$const = new Trailing();
+
+// build/dev/javascript/gleam_json/gleam/json.mjs
+var UnexpectedEndOfInput = class extends CustomType {
+};
+var DecodeError$UnexpectedEndOfInput$const = new UnexpectedEndOfInput();
+
 // build/dev/javascript/gleam_stdlib/gleam/function.mjs
 function identity3(x) {
   return x;
 }
 
 // build/dev/javascript/agnostic/agnostic/internals/constants.mjs
-var empty_list = /* @__PURE__ */ toList([]);
+var empty_list = List$Empty$const;
 
 // build/dev/javascript/agnostic/agnostic/internals/mutable_map.ffi.mjs
 function empty() {
@@ -874,6 +911,9 @@ var replace_kind = 5;
 var insert_kind = 6;
 
 // build/dev/javascript/agnostic/agnostic/vdom/path.mjs
+var Root = class extends CustomType {
+};
+var Path$Root$const = new Root();
 var separator_subtree = "\r";
 var separator_element = "	";
 
@@ -969,6 +1009,9 @@ var getPath = (node) => {
   return path.slice(1);
 };
 var Reconciler = class {
+  // The root is whatever node type the platform deals in — that is a type
+  // parameter on the Gleam side, so there is nothing narrower to say here.
+  /** @type {any} */
   #root = null;
   #decodeEvent;
   #dispatch;
@@ -1470,9 +1513,11 @@ var SYNCED_ATTRIBUTES = {
 var copiedStyleSheets = /* @__PURE__ */ new WeakMap();
 async function adoptStylesheets(shadowRoot) {
   const pendingParentStylesheets = [];
-  for (const node of globalThis.document.querySelectorAll(
-    "link[rel=stylesheet], style"
-  )) {
+  const styleNodes = (
+    /** @type {NodeListOf<HTMLLinkElement | HTMLStyleElement>} */
+    globalThis.document.querySelectorAll("link[rel=stylesheet], style")
+  );
+  for (const node of styleNodes) {
     if (node.sheet) continue;
     pendingParentStylesheets.push(
       new Promise((resolve, reject) => {
@@ -1502,7 +1547,11 @@ async function adoptStylesheets(shadowRoot) {
         }
         shadowRoot.adoptedStyleSheets.push(copiedSheet);
       } catch {
-        const node = sheet.ownerNode.cloneNode();
+        const node = (
+          /** @type {ChildNode} */
+          /** @type {Node} */
+          sheet.ownerNode.cloneNode()
+        );
         shadowRoot.prepend(node);
         pending.push(node);
       }
@@ -1527,6 +1576,26 @@ var LustreEvent = class extends CustomEvent {
   }
 };
 
+// build/dev/javascript/gleam_erlang/gleam/erlang/process.mjs
+var Normal = class extends CustomType {
+};
+var ExitReason$Normal$const = new Normal();
+var Killed = class extends CustomType {
+};
+var ExitReason$Killed$const = new Killed();
+var Anything = class extends CustomType {
+};
+var AnythingSelectorTag$Anything$const = new Anything();
+var Process = class extends CustomType {
+};
+var ProcessMonitorFlag$Process$const = new Process();
+var TimerNotFound = class extends CustomType {
+};
+var Cancelled$TimerNotFound$const = new TimerNotFound();
+var Kill = class extends CustomType {
+};
+var KillFlag$Kill$const = new Kill();
+
 // build/dev/javascript/agnostic/agnostic/attribute.mjs
 function attribute2(name, value) {
   return attribute(name, value);
@@ -1550,6 +1619,12 @@ function map6(element3, f) {
 }
 
 // build/dev/javascript/agnostic/agnostic/platform.mjs
+var NotABrowser = class extends CustomType {
+};
+var PlatformError$NotABrowser$const = new NotABrowser();
+var NotMountable = class extends CustomType {
+};
+var PlatformError$NotMountable$const = new NotMountable();
 var Phase = class extends CustomType {
   constructor(name, schedule) {
     super();
@@ -1558,6 +1633,9 @@ var Phase = class extends CustomType {
   }
 };
 var Phase$Phase = (name, schedule) => new Phase(name, schedule);
+var Headless = class extends CustomType {
+};
+var Platform$Headless$const = new Headless();
 var Platform = class extends CustomType {
   constructor(target, mount, create_element2, create_text_node2, create_fragment2, create_comment2, insert_before2, move_before2, remove_child3, next_sibling2, get_attribute2, set_attribute2, remove_attribute2, set_property2, set_text2, set_raw_content2, create_raw_node2, add_event_listener2, remove_event_listener2, schedule_render2, after_render2, phases2) {
     super();
@@ -1835,7 +1913,13 @@ var unwrapResult = (result) => Result$isOk(result) ? Result$Ok$0(result) : null;
 var wrapResult = (value) => value != null ? Result$Ok(value) : Result$Error(void 0);
 var mount_strict = (root2) => {
   const initialVdom = virtualise(root2);
-  return [root2, initialVdom];
+  return (
+    /** @type {[any, import("../vdom/vnode.mjs").Element$<any>]} */
+    [
+      root2,
+      initialVdom
+    ]
+  );
 };
 var create_element = (ns, tag) => globalThis.document.createElementNS(ns || NAMESPACE_HTML, tag);
 var create_text_node = (content) => globalThis.document.createTextNode(content ?? "");
@@ -1853,27 +1937,34 @@ var set_attribute = (node, name, value) => node.setAttribute(name, value ?? "");
 var remove_attribute = (node, name) => node.removeAttribute(name);
 var set_property = (node, name, value) => {
   node[name] = value;
+  return void 0;
 };
 var set_text = (node, content) => {
   node.data = content ?? "";
+  return void 0;
 };
 var set_raw_content = (node, content) => {
   node.innerHTML = content ?? "";
+  return void 0;
 };
 var create_raw_node = (content) => content;
 var add_event_listener = (node, name, handler, passive) => node.addEventListener(name, handler, { passive });
 var remove_event_listener = (node, name, handler) => node.removeEventListener(name, handler);
 var schedule_render = (callback) => {
   const id = window.requestAnimationFrame(callback);
-  return () => window.cancelAnimationFrame(id);
+  return () => {
+    window.cancelAnimationFrame(id);
+    return void 0;
+  };
 };
-var after_render = () => {
-};
+var after_render = () => void 0;
 var schedule_before_paint = (callback) => {
   queueMicrotask(callback);
+  return void 0;
 };
 var schedule_after_paint = (callback) => {
   window.requestAnimationFrame(callback);
+  return void 0;
 };
 var phases = () => toList2([
   Phase$Phase(before_paint_phase, schedule_before_paint),
@@ -1907,6 +1998,21 @@ var dom_strict = (root2) => {
 };
 
 // build/dev/javascript/agnostic/agnostic/platform/dom.mjs
+var Html = class extends CustomType {
+};
+var DocumentType$Html$const = new Html();
+var HeadOnly = class extends CustomType {
+};
+var DocumentType$HeadOnly$const = new HeadOnly();
+var BodyOnly = class extends CustomType {
+};
+var DocumentType$BodyOnly$const = new BodyOnly();
+var HeadAndBody = class extends CustomType {
+};
+var DocumentType$HeadAndBody$const = new HeadAndBody();
+var Other = class extends CustomType {
+};
+var DocumentType$Other$const = new Other();
 var before_paint_phase = "before_paint";
 var after_paint_phase = "after_paint";
 
@@ -1929,29 +2035,42 @@ var ServerComponent = class extends HTMLElement {
     return ["route", "method", "csrf-token"];
   }
   #shadowRoot;
+  /** @type {"ws" | "sse" | "polling"} */
   #method = "ws";
+  /** @type {URL | null} */
   #route = null;
+  /** @type {string | null} */
   #csrfToken = null;
+  /** @type {WebsocketTransport | SseTransport | PollingTransport | null} */
   #transport = null;
+  /** @type {ChildNode[]} */
   #adoptedStyleNodes = [];
   #reconciler;
+  /** @type {Set<string>} */
   #remoteObservedAttributes = /* @__PURE__ */ new Set();
+  /** @type {Set<string>} */
   #remoteObservedProperties = /* @__PURE__ */ new Set();
   #connected = false;
+  /** @type {[string, string | null][]} */
   #changedAttributesQueue = [];
   #contexts = /* @__PURE__ */ new Map();
+  /** @type {Map<string, () => void>} */
   #contextSubscriptions = /* @__PURE__ */ new Map();
   #observer = new MutationObserver((mutations) => {
     const attributes = [];
     for (const mutation of mutations) {
       if (mutation.type !== "attributes") continue;
       const name = mutation.attributeName;
+      if (name === null) continue;
       if (!this.#connected || this.#remoteObservedAttributes.has(name)) {
         attributes.push([name, this.getAttribute(name)]);
       }
     }
     if (attributes.length === 1) {
-      const [name, value] = attributes[0];
+      const [name, value] = (
+        /** @type {[string, string | null]} */
+        attributes[0]
+      );
       this.#transport?.send({ kind: attribute_changed_kind, name, value });
     } else if (attributes.length) {
       this.#transport?.send({
@@ -1983,7 +2102,7 @@ var ServerComponent = class extends HTMLElement {
       case (prev !== next && "route"): {
         this.#route = new URL(next, location.href);
         this.#csrfToken = this.#getCsrfToken();
-        this.#route.searchParams.set("csrf-token", this.#csrfToken);
+        this.#route.searchParams.set("csrf-token", String(this.#csrfToken));
         this.#connect();
         return;
       }
@@ -1992,7 +2111,7 @@ var ServerComponent = class extends HTMLElement {
         if (normalised == this.#method) return;
         if (["ws", "sse", "polling"].includes(normalised)) {
           this.#method = normalised;
-          if (this.#method == "ws") {
+          if (this.#method == "ws" && this.#route) {
             if (this.#route.protocol == "https:") this.#route.protocol = "wss:";
             if (this.#route.protocol == "http:") this.#route.protocol = "ws:";
           }
@@ -2006,7 +2125,7 @@ var ServerComponent = class extends HTMLElement {
         }
         this.#csrfToken = this.#getCsrfToken();
         if (this.#route) {
-          this.#route.searchParams.set("csrf-token", this.#csrfToken);
+          this.#route.searchParams.set("csrf-token", String(this.#csrfToken));
         }
         if (this.#connected) {
           this.#connect();
@@ -2075,7 +2194,7 @@ var ServerComponent = class extends HTMLElement {
           this.subscribe(key);
         }
         if (messages.length) {
-          this.#transport.send({
+          this.#transport?.send({
             kind: batch_kind,
             messages
           });
@@ -2162,7 +2281,7 @@ var ServerComponent = class extends HTMLElement {
           value
         });
         this.#contextSubscriptions.get(key)?.();
-        this.#contextSubscriptions.set(unsubscribe);
+        this.#contextSubscriptions.set(key, unsubscribe);
       })
     );
   }
@@ -2190,12 +2309,14 @@ var ServerComponent = class extends HTMLElement {
     if (this.#transport) this.#transport.close();
     const onConnect = () => {
       this.#connected = true;
-      this.dispatchEvent(new CustomEvent("lustre:connect"), {
-        detail: {
-          route: this.#route,
-          method: this.#method
-        }
-      });
+      this.dispatchEvent(
+        new CustomEvent("lustre:connect", {
+          detail: {
+            route: this.#route,
+            method: this.#method
+          }
+        })
+      );
     };
     const onMessage = (data2) => {
       this.messageReceivedCallback(data2);
@@ -2446,7 +2567,7 @@ var PollingTransport = class {
   #onConnect;
   #onMessage;
   #onClose;
-  constructor(url, { onConnect, onMessage, onClose, csrfToken, interval }) {
+  constructor(url, { onConnect, onMessage, onClose, csrfToken, interval = void 0 }) {
     this.#url = url;
     this.#csrfToken = csrfToken;
     this.#interval = interval ?? 5e3;
