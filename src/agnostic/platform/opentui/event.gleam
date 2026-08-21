@@ -182,7 +182,10 @@ pub fn on_paste(handler: fn(String) -> msg) -> Attribute(msg) {
 
 // RESIZE EVENTS ---------------------------------------------------------------
 
-/// Listen for size change events.
+/// Listen for size change events on this element. Fires whenever the element's
+/// computed layout size changes, the first layout included (so it fires once on
+/// mount). It is a bare "my size changed, re-render" signal and carries no
+/// payload — the message is dispatched as-is.
 ///
 pub fn on_size_change(msg: msg) -> Attribute(msg) {
   event.on("resize", decode.success(msg))

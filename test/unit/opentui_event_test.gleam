@@ -23,6 +23,7 @@ import lustre_test
 type Msg {
   SliderChanged(Float)
   Changed(String)
+  Resized
 }
 
 // HELPERS ---------------------------------------------------------------------
@@ -74,6 +75,28 @@ pub fn slider_change_rejects_bare_detail_test() {
     cache.handle(events, "0", "sliderchange", payload("{\"detail\":42.0}"))
 
   assert result.is_error(actual)
+}
+
+/// `on_size_change` targets OpenTUI's per-node `resize` emit
+/// (`opentui.ffi.ts` EMITTER_EVENT_MAP `resize: "resize"`), which is a bare,
+/// payload-free event. The decoder must therefore dispatch its message without
+/// reading any payload — pinned here against an event with no `detail`, so a
+/// future change that starts requiring a payload field would break loudly.
+///
+pub fn size_change_dispatches_without_payload_test() {
+  use <- lustre_test.test_filter("size_change_dispatches_without_payload_test")
+
+  let vdom = element.box([event.on_size_change(Resized)], [])
+  let events = cache.from_node(vdom)
+
+  let #(_, actual) = cache.handle(events, "0", "resize", payload("{}"))
+
+  assert actual
+    == Ok(Handler(
+      prevent_default: False,
+      stop_propagation: False,
+      message: Resized,
+    ))
 }
 
 /// `on_change` is shared with `InputRenderable`, which emits `change` with a

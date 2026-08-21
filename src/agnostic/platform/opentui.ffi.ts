@@ -183,7 +183,7 @@ const writeDynamicProp = (
 // compile error here, not a TypeError at element-creation time — which is what
 // the four non-empty option objects below exist for (`SliderOptions
 // .orientation`, `Code`/`MarkdownOptions.syntaxStyle`, `FrameBufferOptions
-// .width`/`.height` are all non-optional in @opentui/core 0.4.5).
+// .width`/`.height` are all non-optional in @opentui/core 0.5.6).
 //
 // This replaces a `Record<string, { new (r, opts: Record<string, unknown>) }>`
 // whose uniform `as unknown as` casts erased exactly those requirements.
@@ -213,7 +213,7 @@ const RENDERABLE_FACTORIES: Record<string, RenderableFactory> = {
 };
 
 // `CodeOptions.syntaxStyle` and `MarkdownOptions.syntaxStyle` are non-optional
-// in @opentui/core 0.4.5, but neither constructor validates or defaults them:
+// in @opentui/core 0.5.6, but neither constructor validates or defaults them:
 // the field is stored as-is and only dereferenced later, inside
 // `treeSitterToTextChunks` (`lib/tree-sitter-styled-text.ts:46`
 // `syntaxStyle.getStyle("default")`), where `undefined` throws a TypeError that
@@ -298,7 +298,7 @@ const FLOAT_PROPS = new Set(["opacity"]);
 // projects install themselves. Enforce it here, at platform construction.
 // Exact version: the single @opentui/core release this platform is developed
 // and tested against.
-const SUPPORTED_OPENTUI_VERSION = "0.4.5";
+const SUPPORTED_OPENTUI_VERSION = "0.5.6";
 
 // The version of @opentui/core this process actually resolved, read from its
 // package.json. The exports map doesn't expose "./package.json", so resolve
@@ -1303,12 +1303,22 @@ const EMITTER_EVENT_MAP: Record<string, string> = {
   input: "input",
   change: "change",
   submit: "enter",
-  resize: "resized",
+  // Per-node size-change signal. OpenTUI's per-element `onResize()` fires
+  // `this.emit("resize")` (a bare, payload-free event) from `updateFromLayout`
+  // whenever the node's computed size changes, first layout included
+  // (`Renderable.ts` onResize/onLayoutResize, @opentui/core 0.5.6). The
+  // `"resized"` event with `{width,height}` is emitted only by
+  // `RootRenderable.resize()` and does not bubble, so subscribing an element to
+  // it never fired — hence this targets the per-node `"resize"` emit instead.
+  // The property route (`onSizeChange`) is deliberately avoided: it is a
+  // single-callback slot ScrollBox consumes internally, and a property write
+  // would clobber it; `node.on("resize")` adds a listener without clobbering.
+  resize: "resize",
   select: "itemSelected",
   selectionchange: "selectionChanged",
   error: "error",
   // Slider value changes. `SliderRenderable` keeps its `onChange` option in a
-  // `private _onChange` assigned only by the constructor (`Slider.ts`, 0.4.5),
+  // `private _onChange` assigned only by the constructor (`Slider.ts`, 0.5.6),
   // so writing `node.onChange` after construction creates an own property
   // nothing reads. Its `set value` accessor also does
   // `this.emit("change", { value: clamped })`, which is observable — hence the
@@ -1350,7 +1360,7 @@ function getHandlers(node: TuiNode): Map<string, EventHandler> {
 // name.
 //
 // OpenTUI's `onMouseDown`/`onKeyDown`/… setters each write ONE slot
-// (`_mouseListeners["down"]`, `_keyListeners["down"]`, `Renderable.ts` 0.4.5),
+// (`_mouseListeners["down"]`, `_keyListeners["down"]`, `Renderable.ts` 0.5.6),
 // and several Lustre event names deliberately share a slot: `click` and
 // `mousedown` both map to `onMouseDown`, `keydown`/`keypress`/`keyup` all map
 // to `onKeyDown`. Assigning the slot directly per Lustre name meant the second

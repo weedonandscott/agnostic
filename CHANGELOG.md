@@ -49,6 +49,11 @@ is preserved in [CHANGELOG_UPSTREAM.md](./CHANGELOG_UPSTREAM.md).
   alternate screen means it interleaves with the rendered UI — OpenTUI's
   `externalOutputMode` defaults to passthrough. Applications that log should
   either keep the capture on or write somewhere other than stdout.
+- [agnostic/platform/opentui] Moved the supported `@opentui/core` version to 0.5.6.
+- [agnostic/platform/opentui] On 0.5.6, OpenTUI honours its frame-rate cap, so
+  `after_flush` effects fire less often under bursty updates than on 0.4.5.
+- [agnostic/platform/opentui] On 0.5.6, a handler that panics on a mouse event
+  no longer resets OpenTUI's stdin parser.
 - [agnostic/platform/opentui] `config.use_alternate_screen` now takes effect.
   The `False` case previously left the alternate screen enabled.
 - [agnostic/platform/opentui] Built-in elements are constructed against their
@@ -74,6 +79,8 @@ is preserved in [CHANGELOG_UPSTREAM.md](./CHANGELOG_UPSTREAM.md).
 - [agnostic/platform/opentui] Event names that share an OpenTUI listener slot no
   longer clobber one another — `on_click` with `on_mouse_down`, or `on_key_down`
   with `on_key_up`, now both fire, and removing one leaves the other alive.
+- [agnostic/platform/opentui] `event.on_size_change` fires again, retargeted from
+  the root-only `resized` event to OpenTUI 0.5.6's per-node `resize` emit.
 
 ## [v2.0.0] - 2026-08-11
 
