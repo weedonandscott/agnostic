@@ -8,6 +8,7 @@ licences = ["MIT"]
 
 [javascript]
 typescript_declarations = true
+runtime = "bun"
 
 links = [
     { title = "Sponsor", href = "https://github.com/sponsors/hayleigh-dot-dev" },
