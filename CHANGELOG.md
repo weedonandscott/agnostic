@@ -55,6 +55,9 @@ is preserved in [CHANGELOG_UPSTREAM.md](./CHANGELOG_UPSTREAM.md).
   own OpenTUI option types, so a missing required option fails to compile.
 - [tooling] The JavaScript test suite runs on Bun. OpenTUI's native library does
   not load on Node, so its platform FFI could not be tested at all.
+- [tooling] Editor-only tsconfigs under `src/` resolve the FFI's build-relative
+  imports in place, so opening one no longer reports every import as missing.
+  `bun run typecheck` is unchanged and remains the authority.
 
 ### Fixed
 

@@ -1,0 +1,27 @@
+{
+  // EDITOR ONLY — not part of `bun run typecheck`, not a gate.
+  //
+  // The `.ffi.ts` half of the editor arrangement described in
+  // `src/tsconfig.json`. It exists separately so the terminal code keeps the
+  // gate's settings — the DOM-free `lib` and `noImplicitAny` of
+  // `tsconfig.ffi.json` — instead of inheriting the widened, `noImplicitAny`-off
+  // options the `.ffi.mjs` project needs. Same `rootDirs` trick, same
+  // permissiveness caveat, same "CI is the authority" conclusion.
+  //
+  // `dom.ffi.mjs` sits in this directory but is deliberately not included:
+  // `tsserver` keeps walking up when the nearest config does not contain the
+  // opened file, so it lands in `src/tsconfig.json` as intended.
+  //
+  // Requires `gleam build --target javascript` to have run.
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDirs": [
+      "../../..",
+      "../../../src",
+      "../../../build/dev/javascript",
+      "../../../build/dev/javascript/agnostic"
+    ]
+  },
+  "include": ["opentui.ffi.ts", "opentui/**/*.ffi.ts"],
+  "exclude": ["**/node_modules/**"]
+}

@@ -1,0 +1,45 @@
+{
+  // EDITOR ONLY — not part of `bun run typecheck`, not a gate.
+  //
+  // The gate (`tsconfig.ffi-js.json`) checks the *copies* Gleam places in
+  // `build/dev/javascript/agnostic/agnostic/…`, because every relative
+  // specifier in the FFI (`../../gleam.mjs`, `../../../prelude.mjs`, …) is
+  // written for that location. At their `src/` paths those specifiers resolve
+  // to nothing, so an editor opening one of these files used to drop it into a
+  // configless inferred project and light it up with TS2307.
+  //
+  // `tsserver` only auto-discovers configs named `tsconfig.json`, and it picks
+  // the *nearest ancestor* one that actually includes the opened file — hence
+  // this file living in `src/` rather than being a differently-named config at
+  // the repo root. The root `tsconfig.json` (the examples project) is left
+  // untouched.
+  //
+  // `rootDirs` is what makes the specifiers resolve: it declares `.`, `src/`
+  // and the two build roots as one virtual directory, so `../../gleam.mjs`
+  // falls through to `build/dev/javascript/agnostic/gleam.mjs`. That is a
+  // permissive union — it will also accept a *wrong* `../` depth that the
+  // build-copy project correctly rejects. Fine for an editor, disqualifying
+  // for a gate, which is exactly why this config is not wired into
+  // `bun run typecheck`. CI remains the authority.
+  //
+  // Compiler options mirror `tsconfig.ffi-js.json` so the editor's verdict on
+  // a `.ffi.mjs` file matches the gate's. `.ffi.ts` files are served by
+  // `src/agnostic/platform/tsconfig.json`, which mirrors `tsconfig.ffi.json`
+  // instead (DOM-free `lib`, `noImplicitAny` on).
+  //
+  // Requires `gleam build --target javascript` to have run.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "checkJs": true,
+    "noImplicitAny": false,
+    "rootDirs": [
+      "..",
+      ".",
+      "../build/dev/javascript",
+      "../build/dev/javascript/agnostic"
+    ]
+  },
+  "include": ["**/*.ffi.mjs"],
+  "exclude": ["**/node_modules/**"]
+}
