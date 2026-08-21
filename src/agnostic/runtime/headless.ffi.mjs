@@ -13,19 +13,30 @@ import * as Cache from "../vdom/cache.mjs";
 import { isEqual } from "../internals/equals.ffi.mjs";
 import {
   Message$isClientDispatchedMessage,
+  Message$ClientDispatchedMessage$message,
   Message$isClientRegisteredCallback,
+  Message$ClientRegisteredCallback$callback,
   Message$isClientDeregisteredCallback,
+  Message$ClientDeregisteredCallback$callback,
   //
   Message$EffectDispatchedMessage,
   Message$isEffectDispatchedMessage,
+  Message$EffectDispatchedMessage$message,
   Message$EffectEmitEvent,
   Message$isEffectEmitEvent,
+  Message$EffectEmitEvent$name,
+  Message$EffectEmitEvent$data,
   Message$EffectProvidedValue,
   Message$isEffectProvidedValue,
+  Message$EffectProvidedValue$key,
+  Message$EffectProvidedValue$value,
   Message$EffectRequestedContextSubscription,
   Message$isEffectRequestedContextSubscription,
+  Message$EffectRequestedContextSubscription$key,
+  Message$EffectRequestedContextSubscription$decoder,
   Message$EffectRemovedContextSubscription,
   Message$isEffectRemovedContextSubscription,
+  Message$EffectRemovedContextSubscription$key,
   //
   Message$isSystemRequestedShutdown,
 } from "./headless.mjs";
@@ -34,12 +45,22 @@ import * as Effect from "../effect.mjs";
 import * as Transport from "./transport.mjs";
 import {
   ServerMessage$isBatch,
+  ServerMessage$Batch$messages,
   ServerMessage$isAttributeChanged,
+  ServerMessage$AttributeChanged$name,
+  ServerMessage$AttributeChanged$value,
   ServerMessage$isPropertyChanged,
+  ServerMessage$PropertyChanged$name,
+  ServerMessage$PropertyChanged$value,
   ServerMessage$isEventFired,
+  ServerMessage$EventFired$path,
+  ServerMessage$EventFired$name,
+  ServerMessage$EventFired$event,
   ServerMessage$isContextProvided,
+  ServerMessage$ContextProvided$key,
+  ServerMessage$ContextProvided$value,
 } from "./transport.mjs";
-import { toList } from "../internals/list.ffi.mjs";
+import { Handler$Handler$message } from "../vdom/vattr.mjs";
 
 //
 
@@ -70,8 +91,8 @@ export class Runtime {
 
   send(message) {
     if (Message$isClientDispatchedMessage(message)) {
-      const { message } = message;
-      const next = this.#handle_client_message(message);
+      const client_message = Message$ClientDispatchedMessage$message(message);
+      const next = this.#handle_client_message(client_message);
       const diff = Diff.diff(this.#cache, this.#vdom, next);
 
       this.#vdom = next;
@@ -79,7 +100,7 @@ export class Runtime {
 
       this.broadcast(Transport.reconcile(diff.patch, Cache.memos(diff.cache)));
     } else if (Message$isClientRegisteredCallback(message)) {
-      const { callback } = message;
+      const callback = Message$ClientRegisteredCallback$callback(message);
       this.#callbacks.add(callback);
 
       callback(
@@ -99,15 +120,15 @@ export class Runtime {
         this.#dispatch(Option.Option$Some$0(this.#config.on_connect));
       }
     } else if (Message$isClientDeregisteredCallback(message)) {
-      const { callback } = message;
+      const callback = Message$ClientDeregisteredCallback$callback(message);
       this.#callbacks.delete(callback);
 
       if (Option.Option$isSome(this.#config.on_disconnect)) {
         this.#dispatch(Option.Option$Some$0(this.#config.on_disconnect));
       }
     } else if (Message$isEffectDispatchedMessage(message)) {
-      const { message } = message;
-      const [model, effect] = this.#update(this.#model, message);
+      const dispatched_message = Message$EffectDispatchedMessage$message(message);
+      const [model, effect] = this.#update(this.#model, dispatched_message);
       const next = this.#view(model);
       const diff = Diff.diff(this.#cache, this.#vdom, next);
 
@@ -119,38 +140,49 @@ export class Runtime {
 
       this.broadcast(Transport.reconcile(diff.patch, Cache.memos(diff.cache)));
     } else if (Message$isEffectEmitEvent(message)) {
-      const { name, data } = message;
+      const name = Message$EffectEmitEvent$name(message);
+      const data = Message$EffectEmitEvent$data(message);
+
       this.broadcast(Transport.emit(name, data));
     } else if (Message$isEffectProvidedValue(message)) {
-      const { key, value } = message;
+      const key = Message$EffectProvidedValue$key(message);
+      const value = Message$EffectProvidedValue$value(message);
       const existing = Dict.get(this.#providers, key);
       // we do not need to broadcast an update if the provided value is the same.
       if (Result$isOk(existing) && isEqual(Result$Ok$0(existing), value)) {
-        return;
+        return undefined;
       }
 
       this.#providers = Dict.insert(this.#providers, key, value);
       this.broadcast(Transport.provide(key, value));
     } else if (Message$isEffectRequestedContextSubscription(message)) {
-      const { key, decoder } = message;
+      const key = Message$EffectRequestedContextSubscription$key(message);
+      const decoder = Message$EffectRequestedContextSubscription$decoder(message);
 
       this.broadcast(Transport.subscribe(key));
       this.#config.contexts = Dict.insert(this.#config.contexts, key, decoder);
     } else if (Message$isEffectRemovedContextSubscription(message)) {
-      const { key } = message;
-      
+      const key = Message$EffectRemovedContextSubscription$key(message);
+
       this.broadcast(Transport.unsubscribe(key));
-      this.#config.contexts = Dict.delete(this.#config.contexts, key);
+      this.#config.contexts = Dict.delete$(this.#config.contexts, key);
     } else if (Message$isSystemRequestedShutdown(message)) {
-      this.#model = null;
-      this.#update = null;
-      this.#view = null;
-      this.#config = null;
-      this.#vdom = null;
-      this.#cache = null;
-      this.#providers = null;
+      // Every field below is typed by its live value; after a shutdown the
+      // runtime is inert and nothing reads them again, so the nulling is
+      // deliberately outside the declared shape.
+      const dead = /** @type {any} */ (null);
+
+      this.#model = dead;
+      this.#update = dead;
+      this.#view = dead;
+      this.#config = dead;
+      this.#vdom = dead;
+      this.#cache = dead;
+      this.#providers = dead;
       this.#callbacks.clear();
     }
+
+    return undefined;
   }
 
   broadcast(message) {
@@ -159,66 +191,75 @@ export class Runtime {
     }
   }
 
-  #handle_client_message(message) {
+  // `vdom` is the fold's accumulator, matching the Erlang runtime's `state`
+  // (headless.gleam: `list.fold(messages, state, handle_client_message)`). It
+  // has to be threaded rather than read from `this.#vdom`, because `send()`
+  // only writes `this.#vdom` once the whole batch has been handled: a nested
+  // message that fails must return what the *previous* nested message
+  // produced, not the pre-batch vdom. Top-level calls start from `this.#vdom`,
+  // which is the same thing when the batch is empty.
+  #handle_client_message(message, vdom = this.#vdom) {
     if (ServerMessage$isBatch(message)) {
-      const { messages } = message;
-      let model = this.#model;
-      let effect = Effect.none();
-
+      const messages = ServerMessage$Batch$messages(message);
+      // Each nested call already updates `this.#model` and `this.#cache` and
+      // schedules its own effects, so the vdom is all this branch threads.
       for (
-        let list = messages;
-        List$NonEmpty$rest(list);
-        list = List$NonEmpty$rest(list)
+        let list = messages, tail = List$NonEmpty$rest(list);
+        tail !== undefined;
+        list = tail, tail = List$NonEmpty$rest(list)
       ) {
-        const result = this.#handle_client_message(List$NonEmpty$first(list));
-        if (Result$isOk(result)) {
-          model = Result$Ok$0(result)[0];
-          effect = Effect.batch(toList([effect, Result$Ok$0(result)[1]]));
-          break;
-        }
+        vdom = this.#handle_client_message(List$NonEmpty$first(list), vdom);
       }
 
-      this.#handle_effect(effect);
-      this.#model = model;
-
-      return this.#view(model);
+      return vdom;
     } else if (ServerMessage$isAttributeChanged(message)) {
-      const { name, value } = message;
+      const name = ServerMessage$AttributeChanged$name(message);
+      const value = ServerMessage$AttributeChanged$value(message);
       const result = this.#handle_attribute_change(name, value);
       if (!Result$isOk(result)) {
-        return this.#vdom;
+        return vdom;
       }
 
       return this.#dispatch(Result$Ok$0(result));
     } else if (ServerMessage$isPropertyChanged(message)) {
-      const { name, value } = message;
+      const name = ServerMessage$PropertyChanged$name(message);
+      const value = ServerMessage$PropertyChanged$value(message);
       const result = this.#handle_properties_change(name, value);
       if (!Result$isOk(result)) {
-        return this.#vdom;
+        return vdom;
       }
 
       return this.#dispatch(Result$Ok$0(result));
     } else if (ServerMessage$isEventFired(message)) {
-      const { path, name, event } = message;
+      const path = ServerMessage$EventFired$path(message);
+      const name = ServerMessage$EventFired$name(message);
+      const event = ServerMessage$EventFired$event(message);
       const [cache, result] = Cache.handle(this.#cache, path, name, event);
 
       this.#cache = cache;
       if (!Result$isOk(result)) {
-        return this.#vdom;
+        return vdom;
       }
 
-      const { message } = Result$Ok$0(result);
-      return this.#dispatch(message);
+      // `Result$isOk` narrows to `Result<unknown, unknown>` and `Result$Ok$0`
+      // is typed `T | undefined`, so the payload type has to be restored by
+      // hand after the guard above.
+      const handler = /** @type {import("../vdom/vattr.mjs").Handler$<any>} */ (
+        Result$Ok$0(result)
+      );
+
+      return this.#dispatch(Handler$Handler$message(handler));
     } else if (ServerMessage$isContextProvided(message)) {
-      const { key, value } = message;
+      const key = ServerMessage$ContextProvided$key(message);
+      const value = ServerMessage$ContextProvided$value(message);
       let result = Dict.get(this.#config.contexts, key);
       if (!Result$isOk(result)) {
-        return this.#vdom;
+        return vdom;
       }
 
       result = Decode.run(value, Result$Ok$0(result));
       if (!Result$isOk(result)) {
-        return this.#vdom;
+        return vdom;
       }
 
       return this.#dispatch(Result$Ok$0(result));
