@@ -52,6 +52,13 @@ import {
   frame_callbacks_phase,
   after_layout_phase,
   after_flush_phase,
+  KittyConfig$isKittyOff,
+  KittyConfig$KittyOn$disambiguate,
+  KittyConfig$KittyOn$alternate_keys,
+  KittyConfig$KittyOn$events,
+  KittyConfig$KittyOn$all_keys_as_escapes,
+  KittyConfig$KittyOn$report_text,
+  type KittyConfig$,
 } from "../../../agnostic/agnostic/platform/opentui.mjs";
 
 // TYPES -----------------------------------------------------------------------
@@ -84,7 +91,7 @@ interface RendererConfig {
   use_thread: Option$<boolean>;
   remote: Option$<boolean>;
   background_color: Option$<string>;
-  use_kitty_keyboard: Option$<boolean>;
+  kitty_keyboard: Option$<KittyConfig$>;
   custom_elements: Iterable<[string, (renderer: CliRenderer) => TuiNode]>;
 }
 
@@ -259,9 +266,9 @@ function assertSupportedOpentui(): void {
   if (version !== SUPPORTED_OPENTUI_VERSION) {
     throw new Error(
       `Unsupported @opentui/core version ${version}. ` +
-        `The opentui platform requires exactly ${SUPPORTED_OPENTUI_VERSION}. ` +
-        `Pin "@opentui/core": "${SUPPORTED_OPENTUI_VERSION}" in your ` +
-        `package.json and reinstall.`,
+      `The opentui platform requires exactly ${SUPPORTED_OPENTUI_VERSION}. ` +
+      `Pin "@opentui/core": "${SUPPORTED_OPENTUI_VERSION}" in your ` +
+      `package.json and reinstall.`,
     );
   }
 }
@@ -318,15 +325,24 @@ function create_renderer(config: RendererConfig): Promise<CliRenderer> {
   if (is_some(config.exit_signals)) {
     opts.exitSignals = Array.from(Option$Some$0(config.exit_signals));
   }
-  // useKittyKeyboard is an object option on OpenTUI (KittyKeyboardOptions |
-  // null), not a plain boolean: send the enabling object only when the user
-  // explicitly opted in. An unset field (None) — or an explicit false — leaves
-  // the key off the opts object, deferring to OpenTUI's own default.
-  if (
-    is_some(config.use_kitty_keyboard) &&
-    Option$Some$0(config.use_kitty_keyboard)
-  ) {
-    opts.useKittyKeyboard = { disambiguate: true, alternateKeys: true };
+  const maybe_kitty = config.kitty_keyboard;
+  if (is_some(maybe_kitty)) {
+    const kitty = Option$Some$0(maybe_kitty);
+    opts.useKittyKeyboard = KittyConfig$isKittyOff(kitty)
+      ? {
+        disambiguate: false,
+        alternateKeys: false,
+        events: false,
+        allKeysAsEscapes: false,
+        reportText: false,
+      }
+      : {
+        disambiguate: KittyConfig$KittyOn$disambiguate(kitty),
+        alternateKeys: KittyConfig$KittyOn$alternate_keys(kitty),
+        events: KittyConfig$KittyOn$events(kitty),
+        allKeysAsEscapes: KittyConfig$KittyOn$all_keys_as_escapes(kitty),
+        reportText: KittyConfig$KittyOn$report_text(kitty),
+      };
   }
   return createCliRenderer(opts) as Promise<CliRenderer>;
 }
@@ -492,8 +508,8 @@ export function platform(
 export function mount(renderer: CliRenderer): [TuiNode, ReturnType<typeof none>] {
   // RootRenderable extends Renderable; we add Lustre shims and use it as a TuiNode.
   const root: TuiNode = Object.assign(renderer.root, {
-    addEventListener: () => {},
-    removeEventListener: () => {},
+    addEventListener: () => { },
+    removeEventListener: () => { },
   });
 
   // Set up the reconciler metadata on the root.

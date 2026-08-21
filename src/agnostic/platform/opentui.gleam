@@ -115,6 +115,28 @@ fn signal_to_string(signal: Signal) -> String {
   }
 }
 
+/// The Kitty keyboard protocol configuration, as accepted by
+/// [`with_kitty_keyboard`](#with_kitty_keyboard).
+///
+/// `KittyOff` disables the protocol entirely — every flag off. `KittyOn`
+/// enables it and selects which of OpenTUI's five flags are on, mirroring
+/// `KittyKeyboardOptions` in `@opentui/core`.
+///
+/// Held as an `Option(KittyConfig)`: [`default_config`](#default_config) leaves it
+/// `None`, which sends nothing to OpenTUI so its own default applies. We defer
+/// to that default rather than copy it, so ours can't drift from OpenTUI's.
+///
+pub type KittyConfig {
+  KittyOff
+  KittyOn(
+    disambiguate: Bool,
+    alternate_keys: Bool,
+    events: Bool,
+    all_keys_as_escapes: Bool,
+    report_text: Bool,
+  )
+}
+
 // EFFECT PHASES ---------------------------------------------------------------
 
 /// The phase name tagged by
@@ -158,7 +180,7 @@ pub opaque type Config {
     background_color: Option(String),
     use_console: Option(Bool),
     open_console_on_error: Option(Bool),
-    use_kitty_keyboard: Option(Bool),
+    kitty_keyboard: Option(KittyConfig),
     gather_stats: Option(Bool),
     max_stat_samples: Option(Int),
     use_thread: Option(Bool),
@@ -260,10 +282,12 @@ pub fn open_console_on_error(config: Config, value: Bool) -> Config {
   Config(..config, open_console_on_error: Some(value))
 }
 
-/// Set whether to use Kitty keyboard protocol.
+/// Set the Kitty keyboard protocol configuration. Pass `KittyOff` to disable
+/// it, or a `KittyOn(...)` to enable it and choose which flags apply. Not
+/// calling this defers to OpenTUI's own default
 ///
-pub fn use_kitty_keyboard(config: Config, value: Bool) -> Config {
-  Config(..config, use_kitty_keyboard: Some(value))
+pub fn with_kitty_keyboard(config: Config, kitty: KittyConfig) -> Config {
+  Config(..config, kitty_keyboard: Some(kitty))
 }
 
 /// Set whether to gather performance stats.
@@ -323,7 +347,7 @@ pub fn default_config() -> Config {
     background_color: None,
     use_console: None,
     open_console_on_error: None,
-    use_kitty_keyboard: None,
+    kitty_keyboard: None,
     gather_stats: None,
     max_stat_samples: None,
     use_thread: None,

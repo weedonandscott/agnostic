@@ -22,6 +22,10 @@ is preserved in [CHANGELOG_UPSTREAM.md](./CHANGELOG_UPSTREAM.md).
   now optional and unset by default, so `default_config` sends nothing for them
   and OpenTUI applies its own defaults instead of values agnostic supplied. Set
   an option explicitly to pin its value.
+- [agnostic/platform/opentui] **Breaking:** Replaced `config.use_kitty_keyboard`
+  (a `Bool`) with `config.with_kitty_keyboard` taking a `KittyConfig` sum type —
+  `KittyOff` (all flags off) or `KittyOn` with all five OpenTUI flags. Not
+  calling it will use OpenTUI's defaults.
 
 ## [v2.0.0] - 2026-08-11
 
