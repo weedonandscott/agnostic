@@ -51,6 +51,8 @@ is preserved in [CHANGELOG_UPSTREAM.md](./CHANGELOG_UPSTREAM.md).
   either keep the capture on or write somewhere other than stdout.
 - [agnostic/platform/opentui] `config.use_alternate_screen` now takes effect.
   The `False` case previously left the alternate screen enabled.
+- [agnostic/platform/opentui] Built-in elements are constructed against their
+  own OpenTUI option types, so a missing required option fails to compile.
 - [tooling] The JavaScript test suite runs on Bun. OpenTUI's native library does
   not load on Node, so its platform FFI could not be tested at all.
 

@@ -116,9 +116,7 @@ interface KeyEventData {
   super?: boolean;
 }
 
-interface RenderableConstructor {
-  new (renderer: CliRenderer, opts: Record<string, unknown>): TuiNode;
-}
+type RenderableFactory = (renderer: CliRenderer) => TuiNode;
 
 type EventHandler = (event: TuiSyntheticEvent) => void;
 
@@ -176,22 +174,42 @@ const writeDynamicProp = (
   (node as unknown as Record<string, unknown>)[prop] = value;
 };
 
-// TAG → Renderable class mapping, built from static imports.
-const RENDERABLE_MAP: Record<string, RenderableConstructor> = {
-  box: BoxRenderable as unknown as RenderableConstructor,
-  text: TextRenderable as unknown as RenderableConstructor,
-  input: InputRenderable as unknown as RenderableConstructor,
-  scrollbox: ScrollBoxRenderable as unknown as RenderableConstructor,
-  textarea: TextareaRenderable as unknown as RenderableConstructor,
-  select: SelectRenderable as unknown as RenderableConstructor,
-  code: CodeRenderable as unknown as RenderableConstructor,
-  markdown: MarkdownRenderable as unknown as RenderableConstructor,
-  diff: DiffRenderable as unknown as RenderableConstructor,
-  asciifont: ASCIIFontRenderable as unknown as RenderableConstructor,
-  tabselect: TabSelectRenderable as unknown as RenderableConstructor,
-  linenumber: LineNumberRenderable as unknown as RenderableConstructor,
-  slider: SliderRenderable as unknown as RenderableConstructor,
-  framebuffer: FrameBufferRenderable as unknown as RenderableConstructor,
+// TAG → typed constructing factory, built from the static imports.
+//
+// Every entry builds its renderable against that class's OWN Options interface:
+// the annotation on the table contextually types each `renderer` parameter and
+// checks the returned node, and the `new` expression inside is checked against
+// the real constructor signature. A required option left out is therefore a
+// compile error here, not a TypeError at element-creation time — which is what
+// the four non-empty option objects below exist for (`SliderOptions
+// .orientation`, `Code`/`MarkdownOptions.syntaxStyle`, `FrameBufferOptions
+// .width`/`.height` are all non-optional in @opentui/core 0.4.5).
+//
+// This replaces a `Record<string, { new (r, opts: Record<string, unknown>) }>`
+// whose uniform `as unknown as` casts erased exactly those requirements.
+const RENDERABLE_FACTORIES: Record<string, RenderableFactory> = {
+  box: (renderer) => new BoxRenderable(renderer, {}),
+  // TextRenderable is the one class whose instance type is not assignable to
+  // TuiNode: its `content` accessor is `StyledText | string`, wider than
+  // TuiNode's `string | { getChildren?() }`. The assertion covers only that
+  // return position — the `new` above it is still checked against TextOptions.
+  text: (renderer) => new TextRenderable(renderer, {}) as unknown as TuiNode,
+  input: (renderer) => new InputRenderable(renderer, {}),
+  scrollbox: (renderer) => new ScrollBoxRenderable(renderer, {}),
+  textarea: (renderer) => new TextareaRenderable(renderer, {}),
+  select: (renderer) => new SelectRenderable(renderer, {}),
+  code: (renderer) =>
+    new CodeRenderable(renderer, { syntaxStyle: defaultSyntaxStyle() }),
+  markdown: (renderer) =>
+    new MarkdownRenderable(renderer, { syntaxStyle: defaultSyntaxStyle() }),
+  diff: (renderer) => new DiffRenderable(renderer, {}),
+  asciifont: (renderer) => new ASCIIFontRenderable(renderer, {}),
+  tabselect: (renderer) => new TabSelectRenderable(renderer, {}),
+  linenumber: (renderer) => new LineNumberRenderable(renderer, {}),
+  slider: (renderer) =>
+    new SliderRenderable(renderer, { orientation: "horizontal" }),
+  framebuffer: (renderer) =>
+    new FrameBufferRenderable(renderer, { width: 1, height: 1 }),
 };
 
 // `CodeOptions.syntaxStyle` and `MarkdownOptions.syntaxStyle` are non-optional
@@ -619,23 +637,15 @@ export function make_create_element(
       return new PortalRenderable(renderer) as unknown as TuiNode;
     }
 
-    const Ctor = RENDERABLE_MAP[tag];
-
-    if (Ctor) {
-      try {
-        if (tag === "slider") {
-          return new Ctor(renderer, { orientation: "horizontal" });
-        }
-        if (tag === "framebuffer") {
-          return new Ctor(renderer, { width: 1, height: 1 });
-        }
-        if (tag === "code" || tag === "markdown") {
-          return new Ctor(renderer, { syntaxStyle: defaultSyntaxStyle() });
-        }
-        return new Ctor(renderer, {});
-      } catch {
-        // Fall through to custom registry check
-      }
+    // The per-tag option objects that used to live here as `tag === "slider"`
+    // style special cases are now part of RENDERABLE_FACTORIES, where the
+    // compiler enforces them. The `try`/`catch` that used to wrap this call and
+    // fall through to the custom registry is gone with them: the only failure
+    // it ever caught was a built-in constructed with options its own Options
+    // interface rejects, which no longer type-checks.
+    const factory = RENDERABLE_FACTORIES[tag];
+    if (factory) {
+      return factory(renderer);
     }
 
     // Check custom element registry before falling back to BoxRenderable.
@@ -649,10 +659,7 @@ export function make_create_element(
     }
 
     // Unknown tags fall back to a box container.
-    return new (BoxRenderable as unknown as RenderableConstructor)(
-      renderer,
-      {},
-    );
+    return new BoxRenderable(renderer, {});
   };
   return (ns: string | null, tag: string): TuiNode => {
     const node = create(ns, tag);
@@ -666,17 +673,14 @@ export function make_create_element(
 // boundary markers. A parentNode getter is added via Object.defineProperty so
 // the reconciler's MetadataNode.parentNode resolution works for virtual nodes.
 function createMarker(): TuiNode {
-  const node = new (BoxRenderable as unknown as RenderableConstructor)(
-    _renderer!,
-    { visible: false },
-  );
+  const node = new BoxRenderable(_renderer!, { visible: false });
   Object.defineProperty(node, "parentNode", {
     get() {
       return (this as TuiNode)._parent;
     },
     configurable: true,
   });
-  return node as unknown as TuiNode;
+  return node;
 }
 
 const create_text_node = (_content: string): TuiNode => {
