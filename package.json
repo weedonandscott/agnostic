@@ -5,7 +5,7 @@
   "private": true,
   "license": "MIT",
   "scripts": {
-    "typecheck": "bun scripts/generate-gleam-types.ts && tsc --noEmit"
+    "typecheck": "gleam build --target javascript && tsc -p tsconfig.json && tsc -p tsconfig.ffi.json && tsc -p tsconfig.ffi-js.json"
   },
   "devDependencies": {
     "@opentui/core": "0.4.5",

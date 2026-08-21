@@ -15,7 +15,7 @@ import type {
 } from "@opentui/core";
 import { Rect$Rect, ScrollExtents$ScrollExtents } from "./effect.mjs";
 import { Result$Ok, Result$Error, List$Empty, List$NonEmpty } from "../../../gleam.mjs";
-import type { List } from "../../../prelude.mjs";
+import type { List } from "../../../../prelude.mjs";
 import { get_renderer } from "../opentui.ffi.ts";
 import { isPortal } from "./portal.ffi.ts";
 

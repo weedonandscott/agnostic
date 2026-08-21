@@ -214,9 +214,23 @@ bun run typecheck               # Typecheck the TypeScript FFI
 gleam run -m build              # Regenerate the server-component bundle
 ```
 
-`bun run typecheck` first regenerates `types/gleam.d.ts` — the TypeScript
-declarations for the compiled Gleam modules that the `.ffi.ts` files import —
-and then runs `tsc --noEmit`. The declarations are generated from the build
-output and are not committed, so a fresh clone shows unresolved imports in
-`.ffi.ts` files until the first `gleam build --target javascript && bun run
-typecheck`.
+`bun run typecheck` runs `gleam build --target javascript` and then three
+TypeScript projects:
+
+| Project               | Checks                                                      |
+| --------------------- | ----------------------------------------------------------- |
+| `tsconfig.json`       | `examples/**/src/*.ts` — no Gleam module resolution needed   |
+| `tsconfig.ffi.json`   | the library's `.ffi.ts` files                                |
+| `tsconfig.ffi-js.json`| the `.ffi.mjs` files that carry the platform contract        |
+
+The last two check the *copies* Gleam places in `build/dev/javascript/agnostic/`,
+because the relative specifiers inside the FFI (`../../gleam.mjs`,
+`../../../agnostic/agnostic/element.mjs`) are written for that location, where
+each `X.mjs` resolves to the `X.d.mts` Gleam emits beside it. That is why the
+build has to run first, and why an editor opening an FFI file under `src/` will
+show unresolved imports — the build copy is the one that type-checks.
+
+`skipLibCheck` stays on. Note what that still hides: Gleam emits a `.d.mts`
+beside every compiled module, and those are declaration files too, so they are
+skipped along with `node_modules`. Turning it off is blocked on a typing error
+in `@opentui/core` itself.

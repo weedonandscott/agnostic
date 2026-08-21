@@ -125,9 +125,9 @@ When upstream releases vX.Y.Z:
    since the last release.
 7. Validate:
    `gleam format --check && gleam test --target erlang && gleam test --target javascript && bun run typecheck && gleam run -m build`
-   (`bun run typecheck` regenerates `types/gleam.d.ts` from the JavaScript
-   build output before running `tsc` — the file is gitignored, never commit
-   it. `gleam run -m build` regenerates `priv/static/` and the runtime script
+   (`bun run typecheck` runs `gleam build --target javascript` first, because
+   the FFI is type-checked against the build copies — see the Development
+   section of `README.md`. `gleam run -m build` regenerates `priv/static/` and the runtime script
    embedded in `src/agnostic/server_component.gleam` — commit those
    artifacts.)
 8. Push `from-vX.Y.Z` and switch the GitHub default branch to it in the web

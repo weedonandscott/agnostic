@@ -39,7 +39,13 @@ export const query_selector = (selector) => {
 // Takes a known-good node and virtualises it. No Result — always succeeds.
 export const mount_strict = (root) => {
   const initialVdom = virtualise(root);
-  return [root, initialVdom];
+
+  // Gleam expects the pair `#(root, initial_vdom)`; an array literal widens to
+  // `any[]` without this.
+  return /** @type {[any, import("../vdom/vnode.mjs").Element$<any>]} */ ([
+    root,
+    initialVdom,
+  ]);
 };
 
 // Legacy mount — kept for compatibility but no longer used by platform.dom().
@@ -91,18 +97,28 @@ export const set_attribute = (node, name, value) =>
 
 export const remove_attribute = (node, name) => node.removeAttribute(name);
 
+// NOTE: the explicit `return undefined` in this file and the ones below are
+// not decoration. Gleam's `Nil` is `undefined`, and a JavaScript function that
+// falls off its end has return type `void`, which is not assignable to
+// `undefined` — the platform record would silently take an `any` instead.
 export const set_property = (node, name, value) => {
   node[name] = value;
+
+  return undefined;
 };
 
 // CONTENT ---------------------------------------------------------------------
 
 export const set_text = (node, content) => {
   node.data = content ?? "";
+
+  return undefined;
 };
 
 export const set_raw_content = (node, content) => {
   node.innerHTML = content ?? "";
+
+  return undefined;
 };
 
 export const create_raw_node = (content) => content;
@@ -119,10 +135,15 @@ export const remove_event_listener = (node, name, handler) =>
 
 export const schedule_render = (callback) => {
   const id = window.requestAnimationFrame(callback);
-  return () => window.cancelAnimationFrame(id);
+
+  return () => {
+    window.cancelAnimationFrame(id);
+
+    return undefined;
+  };
 };
 
-export const after_render = () => {};
+export const after_render = () => undefined;
 
 // EFFECT PHASES ---------------------------------------------------------------
 
@@ -133,6 +154,9 @@ const schedule_before_paint = (callback) => {
   // the callback to allow the runtime to process any microtasks queued by
   // synchronous effects first, such as promise callbacks.
   queueMicrotask(callback);
+
+  // Gleam's `Nil` is `undefined`, and `void` is not assignable to it.
+  return undefined;
 };
 
 const schedule_after_paint = (callback) => {
@@ -140,6 +164,9 @@ const schedule_after_paint = (callback) => {
   // browser paints. Deliberately window.requestAnimationFrame directly — not
   // schedule_render — matching upstream (no cancel handle).
   window.requestAnimationFrame(callback);
+
+  // Gleam's `Nil` is `undefined`, and `void` is not assignable to it.
+  return undefined;
 };
 
 // Declaration order [before_paint, after_paint] + the runtime's in-order

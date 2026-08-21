@@ -65,6 +65,7 @@ const wrapRef = (ref) => ref != null ? Result$Ok(ref) : Result$Error(undefined);
 //
 // The dynamic-import path through a string-concatenated module name keeps
 // bundlers from trying to statically resolve `node:fs` in browser builds.
+/** @type {(line: string) => void} */
 let debugWriteLine = () => {};
 const debugLogPath = globalThis.process?.env?.AGNOSTIC_DEBUG_LOG;
 if (debugLogPath) {
@@ -172,6 +173,9 @@ const getPath = (node) => {
 // RECONCILER ------------------------------------------------------------------
 
 export class Reconciler {
+  // The root is whatever node type the platform deals in — that is a type
+  // parameter on the Gleam side, so there is nothing narrower to say here.
+  /** @type {any} */
   #root = null;
 
   #decodeEvent;

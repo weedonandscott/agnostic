@@ -1,0 +1,16 @@
+{
+  // Type-checks the hand-written `.ffi.ts` files where they actually run.
+  //
+  // Gleam copies `.ffi.ts` verbatim into `build/dev/javascript/agnostic/agnostic/…`
+  // and every relative specifier in them (`../../gleam.mjs`,
+  // `../../../agnostic/agnostic/element.mjs`, …) is written for *that*
+  // location, where `moduleResolution: bundler` maps each `X.mjs` onto the
+  // `X.d.mts` Gleam emits next to it. Checking the copies therefore gives the
+  // FFI the real Gleam types with no generated shim in between.
+  //
+  // Requires `gleam build --target javascript` to have run first; see the
+  // `typecheck` script in package.json.
+  "extends": "./tsconfig.base.json",
+  "include": ["build/dev/javascript/agnostic/agnostic/**/*.ffi.ts"],
+  "exclude": ["**/node_modules/**"]
+}

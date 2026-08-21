@@ -58,7 +58,9 @@ const areObjectsEqual = (a, b) => {
   }
 
   while (index--) {
-    const property = properties[index];
+    // `index` counts down from `properties.length`, so this is always in
+    // range; `noUncheckedIndexedAccess` cannot see that.
+    const property = /** @type {string} */ (properties[index]);
     if (!Object.hasOwn(b, property)) {
       return false;
     }

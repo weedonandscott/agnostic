@@ -1,0 +1,43 @@
+{
+  // Type-checks the eleven hand-written `.ffi.mjs` files that carry the platform
+  // contract. This is browser-DOM code, hence the widened `lib` — the `.ffi.ts`
+  // half is terminal code and keeps the DOM-free `lib` in tsconfig.ffi.json.
+  //
+  // `noImplicitAny` is off: these files are untyped JavaScript, and turning it
+  // on adds ~440 parameter annotations' worth of noise without surfacing a
+  // single defect. Everything else stays strict.
+  //
+  // Selection is the `include` list rather than per-file `// @ts-check`: a
+  // `// @ts-check` comment travels with the file into *every* project that
+  // imports it, and `opentui.ffi.ts` imports `reconciler.ffi.mjs`, which would
+  // drag DOM globals and `noImplicitAny: false` into the terminal project.
+  //
+  // All but one are listed at their build-copy path, for the reason given in
+  // tsconfig.ffi.json. `server_component.ffi.mjs` is the exception: it is the
+  // esbuild bundle entry and its imports are deliberately written relative to
+  // `src/`, so it only resolves there.
+  //
+  // `constants`, `equals`, `list` and `virtualise` are not listed because the
+  // files above already import them, which puts them in the program and under
+  // `checkJs` anyway.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "checkJs": true,
+    "noImplicitAny": false
+  },
+  "include": [
+    "build/dev/javascript/agnostic/agnostic/vdom/reconciler.ffi.mjs",
+    "build/dev/javascript/agnostic/agnostic/runtime/platform/base.ffi.mjs",
+    "build/dev/javascript/agnostic/agnostic/platform/dom.ffi.mjs",
+    "build/dev/javascript/agnostic/agnostic/runtime/headless.ffi.mjs",
+    "build/dev/javascript/agnostic/agnostic/runtime/platform.ffi.mjs",
+    "build/dev/javascript/agnostic/agnostic/runtime/web_component.ffi.mjs",
+    "build/dev/javascript/agnostic/agnostic/vdom/vattr.ffi.mjs",
+    "build/dev/javascript/agnostic/agnostic/vdom/vnode.ffi.mjs",
+    "build/dev/javascript/agnostic/agnostic/internals/mutable_map.ffi.mjs",
+    "build/dev/javascript/agnostic/agnostic/internals/ref.ffi.mjs",
+    "src/agnostic/runtime/server_component.ffi.mjs"
+  ],
+  "exclude": ["**/node_modules/**"]
+}

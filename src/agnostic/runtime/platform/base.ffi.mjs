@@ -8,6 +8,11 @@ import { empty_list } from "../../internals/constants.mjs";
 import { diff } from "../../vdom/diff.mjs";
 import * as Cache from "../../vdom/cache.mjs";
 import { Reconciler } from "../../vdom/reconciler.ffi.mjs";
+import {
+  Handler$Handler$stop_propagation,
+  Handler$Handler$prevent_default,
+  Handler$Handler$message,
+} from "../../vdom/vattr.mjs";
 import { isEqual } from "../../internals/equals.ffi.mjs";
 import { iterate, toList } from "../../internals/list.ffi.mjs";
 import { run as decode } from "../../../../gleam_stdlib/gleam/dynamic/decode.mjs";
@@ -87,12 +92,17 @@ export class Runtime {
       this.#cache = cache;
 
       if (Result$isOk(result)) {
-        const handler = Result$Ok$0(result);
+        // `Result$isOk` narrows to `Result<unknown, unknown>` and
+        // `Result$Ok$0` is typed `T | undefined`, so the payload type has to
+        // be restored by hand after the guard above.
+        const handler = /** @type {import("../../vdom/vattr.mjs").Handler$<any>} */ (
+          Result$Ok$0(result)
+        );
 
-        if (handler.stop_propagation) event.stopPropagation();
-        if (handler.prevent_default) event.preventDefault();
+        if (Handler$Handler$stop_propagation(handler)) event.stopPropagation();
+        if (Handler$Handler$prevent_default(handler)) event.preventDefault();
 
-        this.dispatch(handler.message, false);
+        this.dispatch(Handler$Handler$message(handler), false);
       }
     };
 
@@ -111,6 +121,9 @@ export class Runtime {
 
   // PUBLIC API ----------------------------------------------------------------
 
+  // The root is whatever node type the platform deals in — that is a type
+  // parameter on the Gleam side, so there is nothing narrower to say here.
+  /** @type {any} */
   root = null;
 
   dispatch(message, shouldFlush = false) {
@@ -236,10 +249,13 @@ export class Runtime {
 
   #phases = [];
   #pending = new Map();
+  // `"sync"` when a flush was requested, `true` for a scheduled frame.
+  /** @type {"sync" | true | null} */
   #renderTimer = null;
 
   #platformScheduleRender;
   #platformAfterRender;
+  /** @type {(() => undefined) | null} */
   #cancelRender = null;
 
   #actions = {
@@ -372,9 +388,13 @@ const copiedStyleSheets = new WeakMap();
 
 export async function adoptStylesheets(shadowRoot) {
   const pendingParentStylesheets = [];
-  for (const node of globalThis.document.querySelectorAll(
-    "link[rel=stylesheet], style",
-  )) {
+  // TypeScript's selector parser does not narrow a comma-separated selector,
+  // so the element type has to be spelled out for `node.sheet` below.
+  const styleNodes = /** @type {NodeListOf<HTMLLinkElement | HTMLStyleElement>} */ (
+    globalThis.document.querySelectorAll("link[rel=stylesheet], style")
+  );
+
+  for (const node of styleNodes) {
     if (node.sheet) continue;
 
     pendingParentStylesheets.push(
@@ -395,6 +415,7 @@ export async function adoptStylesheets(shadowRoot) {
   shadowRoot.adoptedStyleSheets =
     shadowRoot.host.getRootNode().adoptedStyleSheets;
 
+  /** @type {ChildNode[]} */
   const pending = [];
 
   for (const sheet of globalThis.document.styleSheets) {
@@ -413,7 +434,12 @@ export async function adoptStylesheets(shadowRoot) {
 
         shadowRoot.adoptedStyleSheets.push(copiedSheet);
       } catch {
-        const node = sheet.ownerNode.cloneNode();
+        // `ownerNode` is only null for constructed stylesheets, which never
+        // appear in `document.styleSheets`; it is always the `<link>` or
+        // `<style>` element the sheet came from.
+        const node = /** @type {ChildNode} */ (
+          /** @type {Node} */ (sheet.ownerNode).cloneNode()
+        );
 
         shadowRoot.prepend(node);
         pending.push(node);
