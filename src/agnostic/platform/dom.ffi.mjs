@@ -20,9 +20,22 @@ import { toList } from "../internals/list.ffi.mjs";
 // initializer, where they could hit the temporal dead zone.
 import { before_paint_phase, after_paint_phase } from "./dom.mjs";
 
-// Helpers to convert between Gleam Result and nullable.
-const unwrapResult = (result) =>
-  Result$isOk(result) ? Result$Ok$0(result) : null;
+// TYPES -----------------------------------------------------------------------
+
+// The platform contract's node-reference slot: Gleam's `Result(node, Nil)`.
+/** @typedef {import("../../gleam.mjs").Result<Node, undefined>} NodeRef */
+
+// The platform contract's `raw` slot. Gleam's `RawContent` is an erased
+// external type, so the generated `.d.mts` spells it `any` — and it has to be,
+// because the DOM platform stores an HTML string for a raw *container* and a
+// live node for a raw *node*. Neither annotation would fit both slots.
+/** @typedef {import("../vdom/vnode.mjs").RawContent$} RawContent */
+
+// Helpers to convert between Gleam Result and nullable. `Result$isOk` narrows
+// its argument to `Result<unknown, unknown>`, so `Result$Ok$0` comes back as
+// `unknown` and the node type has to be restored on the way out.
+const unwrapResult = (/** @type {NodeRef} */ result) =>
+  Result$isOk(result) ? /** @type {Node} */ (Result$Ok$0(result)) : null;
 const wrapResult = (value) =>
   value != null ? Result$Ok(value) : Result$Error(undefined);
 
@@ -37,12 +50,14 @@ export const query_selector = (selector) => {
 };
 
 // Takes a known-good node and virtualises it. No Result — always succeeds.
-export const mount_strict = (root) => {
+export const mount_strict = (/** @type {Node} */ root) => {
   const initialVdom = virtualise(root);
 
   // Gleam expects the pair `#(root, initial_vdom)`; an array literal widens to
-  // `any[]` without this.
-  return /** @type {[any, import("../vdom/vnode.mjs").Element$<any>]} */ ([
+  // `any[]` without this. The first element must be spelled `Node` rather than
+  // `any`: it is one of the inference sites for the platform's node type, and
+  // an `any` there would collapse the whole record's node slot back to `any`.
+  return /** @type {[Node, import("../vdom/vnode.mjs").Element$<any>]} */ ([
     root,
     initialVdom,
   ]);
@@ -61,47 +76,107 @@ export const mount = (target) => {
 
 // NODE CREATION ---------------------------------------------------------------
 
-export const create_element = (ns, tag) =>
-  globalThis.document.createElementNS(ns || NAMESPACE_HTML, tag);
+export const create_element = (
+  /** @type {string} */ ns,
+  /** @type {string} */ tag,
+) => globalThis.document.createElementNS(ns || NAMESPACE_HTML, tag);
 
-export const create_text_node = (content) =>
+export const create_text_node = (/** @type {string} */ content) =>
   globalThis.document.createTextNode(content ?? "");
 
 export const create_fragment = () => globalThis.document.createDocumentFragment();
 
-export const create_comment = (data) => globalThis.document.createComment(data);
+export const create_comment = (/** @type {string} */ data) =>
+  globalThis.document.createComment(data);
 
 // TREE MANIPULATION -----------------------------------------------------------
 
-export const insert_before = (parent, node, ref) =>
+// NOTE: the explicit `return undefined` on every `Nil`-returning function from
+// here down is not decoration. Gleam's `Nil` is `undefined`, and a JavaScript
+// function that falls off its end has return type `void`, which is not
+// assignable to `undefined` — the platform record would silently take an `any`
+// instead. The same goes for the parameter annotations: without them every
+// function here is `(...args: any[]) => X`, assignable to *any* slot of the
+// record, and `newPlatform` below stops checking anything.
+export const insert_before = (
+  /** @type {Node} */ parent,
+  /** @type {Node} */ node,
+  /** @type {NodeRef} */ ref,
+) => {
   parent.insertBefore(node, unwrapResult(ref));
 
+  return undefined;
+};
+
 export const move_before = SUPPORTS_MOVE_BEFORE
-  ? (parent, node, ref) => parent.moveBefore(node, unwrapResult(ref))
-  : (parent, node, ref) => parent.insertBefore(node, unwrapResult(ref));
+  ? (
+      /** @type {Node} */ parent,
+      /** @type {Node} */ node,
+      /** @type {NodeRef} */ ref,
+    ) => {
+      // `moveBefore` is declared on `ParentNode`, not on `Node`; the runtime
+      // guard above is what actually establishes it is there.
+      /** @type {ParentNode} */ (parent).moveBefore(node, unwrapResult(ref));
 
-export const remove_child = (parent, child) => parent.removeChild(child);
+      return undefined;
+    }
+  : (
+      /** @type {Node} */ parent,
+      /** @type {Node} */ node,
+      /** @type {NodeRef} */ ref,
+    ) => {
+      parent.insertBefore(node, unwrapResult(ref));
 
-export const next_sibling = (node) => {
+      return undefined;
+    };
+
+export const remove_child = (
+  /** @type {Node} */ parent,
+  /** @type {Node} */ child,
+) => {
+  parent.removeChild(child);
+
+  return undefined;
+};
+
+export const next_sibling = (/** @type {Node} */ node) => {
   const sibling = node.nextSibling;
   return sibling ? Result$Ok(sibling) : Result$Error(undefined);
 };
 
 // ATTRIBUTES ------------------------------------------------------------------
 
-export const get_attribute = (node, name) =>
-  wrapResult(node.getAttribute(name));
+// The contract's node type is uniform, so these arrive typed as `Node` and the
+// attribute APIs — which live on `Element` — have to be reached through a cast.
+export const get_attribute = (
+  /** @type {Node} */ node,
+  /** @type {string} */ name,
+) => wrapResult(/** @type {Element} */ (node).getAttribute(name));
 
-export const set_attribute = (node, name, value) =>
-  node.setAttribute(name, value ?? "");
+export const set_attribute = (
+  /** @type {Node} */ node,
+  /** @type {string} */ name,
+  /** @type {string} */ value,
+) => {
+  /** @type {Element} */ (node).setAttribute(name, value ?? "");
 
-export const remove_attribute = (node, name) => node.removeAttribute(name);
+  return undefined;
+};
 
-// NOTE: the explicit `return undefined` in this file and the ones below are
-// not decoration. Gleam's `Nil` is `undefined`, and a JavaScript function that
-// falls off its end has return type `void`, which is not assignable to
-// `undefined` — the platform record would silently take an `any` instead.
-export const set_property = (node, name, value) => {
+export const remove_attribute = (
+  /** @type {Node} */ node,
+  /** @type {string} */ name,
+) => {
+  /** @type {Element} */ (node).removeAttribute(name);
+
+  return undefined;
+};
+
+export const set_property = (
+  /** @type {Node} */ node,
+  /** @type {string} */ name,
+  /** @type {unknown} */ value,
+) => {
   node[name] = value;
 
   return undefined;
@@ -109,31 +184,56 @@ export const set_property = (node, name, value) => {
 
 // CONTENT ---------------------------------------------------------------------
 
-export const set_text = (node, content) => {
-  node.data = content ?? "";
+export const set_text = (
+  /** @type {Node} */ node,
+  /** @type {string} */ content,
+) => {
+  /** @type {CharacterData} */ (node).data = content ?? "";
 
   return undefined;
 };
 
-export const set_raw_content = (node, content) => {
-  node.innerHTML = content ?? "";
+export const set_raw_content = (
+  /** @type {Node} */ node,
+  /** @type {RawContent} */ content,
+) => {
+  /** @type {Element} */ (node).innerHTML = content ?? "";
 
   return undefined;
 };
 
-export const create_raw_node = (content) => content;
+// `RawContent` is erased to `any`, so the identity has to be re-narrowed on the
+// way out: an `any` here is a covariant inference site for the record's node
+// type and would collapse it.
+export const create_raw_node = (/** @type {RawContent} */ content) =>
+  /** @type {Node} */ (content);
 
 // EVENTS ----------------------------------------------------------------------
 
-export const add_event_listener = (node, name, handler, passive) =>
+export const add_event_listener = (
+  /** @type {Node} */ node,
+  /** @type {string} */ name,
+  /** @type {(event: Event) => undefined} */ handler,
+  /** @type {boolean} */ passive,
+) => {
   node.addEventListener(name, handler, { passive });
 
-export const remove_event_listener = (node, name, handler) =>
+  return undefined;
+};
+
+export const remove_event_listener = (
+  /** @type {Node} */ node,
+  /** @type {string} */ name,
+  /** @type {(event: Event) => undefined} */ handler,
+) => {
   node.removeEventListener(name, handler);
+
+  return undefined;
+};
 
 // SCHEDULING ------------------------------------------------------------------
 
-export const schedule_render = (callback) => {
+export const schedule_render = (/** @type {() => undefined} */ callback) => {
   const id = window.requestAnimationFrame(callback);
 
   return () => {
@@ -147,7 +247,7 @@ export const after_render = () => undefined;
 
 // EFFECT PHASES ---------------------------------------------------------------
 
-const schedule_before_paint = (callback) => {
+const schedule_before_paint = (/** @type {() => undefined} */ callback) => {
   // Upstream-exact: a microtask after the render pass blocks the browser from
   // painting until the phase's effects (and any second render they dispatch)
   // have run. We explicitly queue a microtask instead of synchronously calling
@@ -159,7 +259,7 @@ const schedule_before_paint = (callback) => {
   return undefined;
 };
 
-const schedule_after_paint = (callback) => {
+const schedule_after_paint = (/** @type {() => undefined} */ callback) => {
   // Upstream-exact: rAF requested from within the render pass; fires after the
   // browser paints. Deliberately window.requestAnimationFrame directly — not
   // schedule_render — matching upstream (no cancel handle).
@@ -183,7 +283,7 @@ const phases = () =>
 
 // Returns a complete Platform record configured for the browser DOM.
 // This is called from dom.gleam's dom_strict function.
-export const dom_strict = (root) => {
+export const dom_strict = (/** @type {Node} */ root) => {
   return newPlatform(
     root,
     mount_strict,
