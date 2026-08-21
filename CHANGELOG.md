@@ -16,6 +16,14 @@ is preserved in [CHANGELOG_UPSTREAM.md](./CHANGELOG_UPSTREAM.md).
 - [agnostic/platform/opentui] Added `Signal` and `exit_signals`, forwarding
   OpenTUI's `exitSignals` — previously its default list always applied.
 
+### Removed
+
+- [agnostic/platform/opentui] **Breaking:** Removed `attribute.enable_layout`.
+  `enableLayout` is a construction option in OpenTUI, never an instance
+  property, so the attribute wrote a value nothing read.
+- [agnostic/platform/opentui] **Breaking:** Removed `attribute.language`, since
+  it is absent from OpenTUI as well.
+
 ### Changed
 
 - [agnostic/platform/opentui] **Breaking:** `use_console(Bool)` and
@@ -32,6 +40,33 @@ is preserved in [CHANGELOG_UPSTREAM.md](./CHANGELOG_UPSTREAM.md).
   (a `Bool`) with `config.with_kitty_keyboard` taking a `KittyConfig` sum type —
   `KittyOff` (all flags off) or `KittyOn` with all five OpenTUI flags. Not
   calling it will use OpenTUI's defaults.
+- [agnostic/platform/opentui] **Breaking:** `event.on_slider_change` now decodes
+  `detail.value`. It previously read a payload shape the slider never emits, via
+  a property the slider never reads.
+- [agnostic/platform/opentui] **Breaking:** `config.use_console(False)` now
+  disables OpenTUI's console capture instead of enabling an overlay that is
+  never shown. Console output reaches the terminal, which under the default
+  alternate screen means it interleaves with the rendered UI — OpenTUI's
+  `externalOutputMode` defaults to passthrough. Applications that log should
+  either keep the capture on or write somewhere other than stdout.
+- [agnostic/platform/opentui] `config.use_alternate_screen` now takes effect.
+  The `False` case previously left the alternate screen enabled.
+
+### Fixed
+
+- [agnostic/runtime] The JavaScript headless runtime no longer dies with a
+  `ReferenceError` on its first dispatched effect, and messages inside a `Batch`
+  keep their model updates instead of being reverted.
+- [agnostic/runtime] Server component context subscriptions are keyed, so they
+  can be found and cleaned up, and `lustre:connect` carries its `detail`.
+- [agnostic/runtime] Adopting stylesheets no longer removes a node of
+  application content per adopted sheet, and works with a closed shadow root.
+- [agnostic/platform/opentui] `code` and `markdown` elements are constructed
+  with the syntax style they require, so highlighting no longer fails into a
+  swallowed warning.
+- [agnostic/platform/opentui] Event names that share an OpenTUI listener slot no
+  longer clobber one another — `on_click` with `on_mouse_down`, or `on_key_down`
+  with `on_key_up`, now both fire, and removing one leaves the other alive.
 
 ## [v2.0.0] - 2026-08-11
 
