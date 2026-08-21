@@ -18,9 +18,10 @@ import {
   LineNumberRenderable,
   SliderRenderable,
   FrameBufferRenderable,
+  SyntaxStyle,
   TextAttributes,
 } from "@opentui/core";
-import type { CliRenderer, Renderable } from "@opentui/core";
+import type { CliRenderer, CliRendererConfig, Renderable } from "@opentui/core";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,7 +39,7 @@ import {
   Option$Some$0,
   type Option$,
 } from "../../../gleam_stdlib/gleam/option.mjs";
-import type { Result } from "../../prelude.mjs";
+import type { Result } from "../../../prelude.mjs";
 import { none } from "../../../agnostic/agnostic/element.mjs";
 import { insertMetadataChild } from "../../../agnostic/agnostic/vdom/reconciler.ffi.mjs";
 import { element_kind } from "../../../agnostic/agnostic/vdom/vnode.mjs";
@@ -58,14 +59,21 @@ import {
   KittyConfig$KittyOn$events,
   KittyConfig$KittyOn$all_keys_as_escapes,
   KittyConfig$KittyOn$report_text,
+  ScreenMode$isAlternateScreen,
+  ScreenMode$isMainScreen,
+  type ScreenMode$,
+  ConsoleMode$isConsoleOverlay,
+  type ConsoleMode$,
   type KittyConfig$,
 } from "../../../agnostic/agnostic/platform/opentui.mjs";
 
 // TYPES -----------------------------------------------------------------------
 
 // Extended Renderable with Lustre-specific properties added at runtime.
-// Index signature allows dynamic property access for attribute mapping.
-interface TuiNode extends Renderable {
+// Deliberately has NO index signature: one would make every property access on
+// every node legal, typos included. Dynamic keys go through
+// readDynamicProp / writeDynamicProp below.
+export interface TuiNode extends Renderable {
   _parent?: Renderable | TuiFragment;
   addEventListener?: (event: string, handler: () => void) => void;
   removeEventListener?: (event: string, handler: () => void) => void;
@@ -76,15 +84,18 @@ interface TuiNode extends Renderable {
 
 interface RendererConfig {
   exit_on_ctrl_c: Option$<boolean>;
-  exit_signals: Option$<Iterable<string>>;
-  use_alternate_screen: Option$<boolean>;
+  // The Gleam side's `Signal` type is closed and every variant maps to a
+  // NodeJS.Signals member (opentui.gleam:77 signal_to_string), so the narrower
+  // element type is a true statement about what crosses the boundary.
+  exit_signals: Option$<Iterable<NodeJS.Signals>>;
+  screen_mode: Option$<ScreenMode$>;
   use_mouse: Option$<boolean>;
   target_fps: Option$<number>;
   max_fps: Option$<number>;
   debounce_delay: Option$<number>;
   auto_focus: Option$<boolean>;
   enable_mouse_movement: Option$<boolean>;
-  use_console: Option$<boolean>;
+  console_mode: Option$<ConsoleMode$>;
   open_console_on_error: Option$<boolean>;
   gather_stats: Option$<boolean>;
   max_stat_samples: Option$<number>;
@@ -151,6 +162,20 @@ const isDestroyed = (node: TuiNode | null | undefined): boolean =>
   "isDestroyed" in node &&
   (node as { isDestroyed: boolean }).isDestroyed === true;
 
+// The only two places the dynamic-key escape hatch lives. Attribute and event
+// names arrive as runtime strings, so the write cannot be checked; confining
+// the cast here keeps every *static* property access on TuiNode checked.
+const readDynamicProp = (node: TuiNode, prop: string): unknown =>
+  (node as unknown as Record<string, unknown>)[prop];
+
+const writeDynamicProp = (
+  node: TuiNode,
+  prop: string,
+  value: unknown,
+): void => {
+  (node as unknown as Record<string, unknown>)[prop] = value;
+};
+
 // TAG → Renderable class mapping, built from static imports.
 const RENDERABLE_MAP: Record<string, RenderableConstructor> = {
   box: BoxRenderable as unknown as RenderableConstructor,
@@ -168,6 +193,32 @@ const RENDERABLE_MAP: Record<string, RenderableConstructor> = {
   slider: SliderRenderable as unknown as RenderableConstructor,
   framebuffer: FrameBufferRenderable as unknown as RenderableConstructor,
 };
+
+// `CodeOptions.syntaxStyle` and `MarkdownOptions.syntaxStyle` are non-optional
+// in @opentui/core 0.4.5, but neither constructor validates or defaults them:
+// the field is stored as-is and only dereferenced later, inside
+// `treeSitterToTextChunks` (`lib/tree-sitter-styled-text.ts:46`
+// `syntaxStyle.getStyle("default")`), where `undefined` throws a TypeError that
+// Code.ts swallows into `console.warn("Code highlighting failed, ...")`. The
+// same package treats the field as optional elsewhere and defaults it with
+// `?? SyntaxStyle.create()` (`renderables/Diff.ts:345`), so that is the
+// fallback used here.
+//
+// Created lazily and shared: `SyntaxStyle.create()` resolves the native render
+// library, which must not happen at module-import time, and it owns a native
+// handle we would otherwise allocate once per element. Neither CodeRenderable
+// nor MarkdownRenderable destroys an option-supplied syntaxStyle (only
+// TextBufferRenderable's own internal one, `TextBufferRenderable.ts:487`), so
+// sharing one instance across every node is safe.
+//
+// NOTE: this registers no styles, so highlighting resolves every capture group
+// to "no style" and code renders unstyled — the same output as today, minus the
+// exception. Actual colours need a theme; see `attribute.gleam:758`.
+let _defaultSyntaxStyle: SyntaxStyle | null = null;
+
+function defaultSyntaxStyle(): SyntaxStyle {
+  return (_defaultSyntaxStyle ??= SyntaxStyle.create());
+}
 
 // Custom element registry: tag name → factory function.
 // Populated from config.custom_elements in platform(), checked by make_create_element.
@@ -276,12 +327,17 @@ function assertSupportedOpentui(): void {
 // RENDERER --------------------------------------------------------------------
 
 function create_renderer(config: RendererConfig): Promise<CliRenderer> {
-  const opts: Record<string, unknown> = {};
+  const opts: CliRendererConfig = {};
   if (is_some(config.exit_on_ctrl_c)) {
     opts.exitOnCtrlC = Option$Some$0(config.exit_on_ctrl_c);
   }
-  if (is_some(config.use_alternate_screen)) {
-    opts.useAlternateScreen = Option$Some$0(config.use_alternate_screen);
+  if (is_some(config.screen_mode)) {
+    const m = Option$Some$0(config.screen_mode);
+    opts.screenMode = ScreenMode$isAlternateScreen(m)
+      ? "alternate-screen"
+      : ScreenMode$isMainScreen(m)
+        ? "main-screen"
+        : "split-footer";
   }
   if (is_some(config.use_mouse)) {
     opts.useMouse = Option$Some$0(config.use_mouse);
@@ -301,8 +357,11 @@ function create_renderer(config: RendererConfig): Promise<CliRenderer> {
   if (is_some(config.enable_mouse_movement)) {
     opts.enableMouseMovement = Option$Some$0(config.enable_mouse_movement);
   }
-  if (is_some(config.use_console)) {
-    opts.useConsole = Option$Some$0(config.use_console);
+  if (is_some(config.console_mode)) {
+    const m = Option$Some$0(config.console_mode);
+    opts.consoleMode = ConsoleMode$isConsoleOverlay(m)
+      ? "console-overlay"
+      : "disabled";
   }
   if (is_some(config.open_console_on_error)) {
     opts.openConsoleOnError = Option$Some$0(config.open_console_on_error);
@@ -344,7 +403,7 @@ function create_renderer(config: RendererConfig): Promise<CliRenderer> {
         reportText: KittyConfig$KittyOn$report_text(kitty),
       };
   }
-  return createCliRenderer(opts) as Promise<CliRenderer>;
+  return createCliRenderer(opts);
 }
 
 // PLATFORM --------------------------------------------------------------------
@@ -570,6 +629,9 @@ export function make_create_element(
         if (tag === "framebuffer") {
           return new Ctor(renderer, { width: 1, height: 1 });
         }
+        if (tag === "code" || tag === "markdown") {
+          return new Ctor(renderer, { syntaxStyle: defaultSyntaxStyle() });
+        }
         return new Ctor(renderer, {});
       } catch {
         // Fall through to custom registry check
@@ -622,10 +684,33 @@ const create_text_node = (_content: string): TuiNode => {
   return node;
 };
 
-const create_fragment = (): TuiNode => {
-  const node = new TuiFragment() as unknown as TuiNode;
+const createFragment = (): TuiFragment => {
+  const node = new TuiFragment();
   return node;
 };
+
+// The one place the fragment is presented as the platform's `node` type.
+//
+// Gleam's `Platform(node, …)` has a SINGLE node type parameter, but this
+// platform deals in two runtime kinds: real Renderables, and the detached
+// TuiFragment `createFragment` builds. Only `insert_before` is polymorphic
+// over both — every other platform method is total on Renderables alone (see
+// the notes on `move_before` and `remove_child` for why fragments provably
+// never reach them), so TypeScript infers the record's node type as `TuiNode`
+// and this slot cannot be expressed without an assertion.
+//
+// It is safe because the reconciler treats `create_fragment`'s result as
+// opaque: `#insert` (vdom/reconciler.ffi.mjs) does nothing with the value but
+// hand it straight back to `insert_before`, twice — once as `parent` while
+// filling it, once as `node` while splicing it in — and both of those
+// parameters are declared over `TuiNode | TuiFragment`. It is never stored in
+// reconciler metadata, so it never reaches `move_before` / `remove_child` /
+// `next_sibling` / the attribute and event setters.
+//
+// Confining the assertion here is the point: `createFragment` is honestly
+// typed, so every *use* of a fragment inside this file is checked against
+// TuiFragment's three members rather than Renderable's 174.
+const create_fragment = createFragment as unknown as () => TuiNode;
 
 const create_comment = (_data: string): TuiNode => {
   const node = createMarker();
@@ -640,7 +725,7 @@ function doInsertBefore(
   refNode: TuiNode | null,
 ): void {
   // Guard: skip if parent is destroyed
-  if (!(parent instanceof TuiFragment) && isDestroyed(parent as TuiNode)) {
+  if (!(parent instanceof TuiFragment) && isDestroyed(parent)) {
     return;
   }
 
@@ -668,18 +753,25 @@ function doInsertBefore(
     return;
   }
 
-  if (refNode != null && (parent as TuiNode).insertBefore) {
+  // `parent` is a TuiNode here: the fragment case returned above. `add` and
+  // `insertBefore` are non-optional members of Renderable, so the truthiness
+  // checks that used to wrap these two calls could never be false.
+  if (refNode != null) {
     if (node === refNode) {
       return;
     }
-    (parent as TuiNode).insertBefore!(node, refNode);
-  } else if ((parent as TuiNode).add) {
-    (parent as TuiNode).add!(node);
+    parent.insertBefore(node, refNode);
+  } else {
+    parent.add(node);
   }
 }
 
+// Both `parent` and `node` genuinely receive fragments: the reconciler's
+// `#insert` builds a detached TuiFragment, fills it by calling this with the
+// fragment as `parent`, then splices it in by calling this with the fragment
+// as `node` (vdom/reconciler.ffi.mjs `#insert`).
 const insert_before = (
-  parent: TuiNode,
+  parent: TuiNode | TuiFragment,
   node: TuiNode | TuiFragment,
   ref: Result<TuiNode, unknown>,
 ): undefined => {
@@ -688,6 +780,10 @@ const insert_before = (
   return undefined;
 };
 
+// `node` is never a fragment, for the same reason as `remove_child`: the
+// reconciler's `#moveChild` only ever passes `metadata.node` /
+// `metadata.endNode`. `doInsertBefore`'s fragment branch is therefore dead on
+// *this* call path — but it is live on `insert_before`'s, so it stays.
 const move_before = (
   parent: TuiNode,
   node: TuiNode,
@@ -711,6 +807,8 @@ const move_before = (
   return undefined;
 };
 
+// A reconciler-side TuiFragment is never a real node in OpenTUI's tree; drop it
+// here rather than pass a non-child to OpenTUI's mutators.
 const remove_child = (
   parent: TuiNode,
   child: TuiNode | TuiFragment,
@@ -719,6 +817,9 @@ const remove_child = (
     return undefined;
   }
 
+  // `parent` really can be nullish at runtime despite the annotation: it comes
+  // from `MetadataNode.parentNode`, which for a virtual node reads the head
+  // marker's `_parent`, and that is cleared below when the marker is removed.
   if (parent && !isDestroyed(parent) && parent.remove) {
     parent.remove(child);
   }
@@ -738,10 +839,14 @@ const remove_child = (
   return undefined;
 };
 
-const next_sibling = (node: TuiNode): unknown => {
-  const parent = node._parent as TuiNode | undefined;
-  // Guard: skip if parent is destroyed
-  if (!parent || !parent.getChildren || isDestroyed(parent))
+const next_sibling = (node: TuiNode): Result<TuiNode, undefined> => {
+  const parent = node._parent;
+  // Guard: skip if there is no parent, if the parent is a detached fragment
+  // (no real child list to walk), or if the parent is destroyed. The fragment
+  // case replaces a `!parent.getChildren` truthiness test: `getChildren` is
+  // non-optional on Renderable, so the only value it could ever be false for
+  // was a TuiFragment.
+  if (!parent || parent instanceof TuiFragment || isDestroyed(parent))
     return Result$Error(undefined);
   const children = parent.getChildren();
   const index = children.indexOf(node);
@@ -767,7 +872,6 @@ const ATTR_MAP: Record<string, string> = {
   opacity: "opacity",
   buffered: "buffered",
   live: "live",
-  "enable-layout": "enableLayout",
   selectable: "selectable",
 
   // Flexbox
@@ -861,8 +965,7 @@ const ATTR_MAP: Record<string, string> = {
   value: "value",
   "initial-value": "initialValue",
   title: "title",
-  language: "language",
-  filetype: "language",
+  filetype: "filetype",
   content: "content",
   focusable: "focusable",
 
@@ -924,7 +1027,6 @@ const BOOLEAN_PROPS = new Set([
   "visible",
   "buffered",
   "live",
-  "enableLayout",
   "selectable",
   "shouldFill",
   "truncate",
@@ -972,10 +1074,12 @@ function coerceValue(prop: string, value: unknown): unknown {
   return value;
 }
 
-const get_attribute = (node: TuiNode, name: string): unknown => {
+const get_attribute = (
+  node: TuiNode,
+  name: string,
+): Result<string, undefined> => {
   const prop = ATTR_MAP[name] ?? name;
-  // @ts-expect-error dynamic property access — same pattern as OpenTUI React reconciler (utils/index.ts:93)
-  const value = node[prop];
+  const value = readDynamicProp(node, prop);
   return value != null ? Result$Ok(String(value)) : Result$Error(undefined);
 };
 
@@ -1007,8 +1111,7 @@ const set_attribute = (node: TuiNode, name: string, value: unknown): undefined =
     return undefined;
   }
   const coerced = coerceValue(prop, value ?? "");
-  // @ts-expect-error dynamic property access — same pattern as OpenTUI React reconciler (utils/index.ts:93)
-  node[prop] = coerced;
+  writeDynamicProp(node, prop, coerced);
   return undefined;
 };
 
@@ -1034,8 +1137,7 @@ const remove_attribute = (node: TuiNode, name: string): undefined => {
   if (prop === "focusable" && node.blur) {
     node.blur();
   }
-  // @ts-expect-error dynamic property clear with null — same pattern as OpenTUI React reconciler (utils/index.ts:28)
-  node[prop] = null;
+  writeDynamicProp(node, prop, null);
   return undefined;
 };
 
@@ -1052,8 +1154,7 @@ const set_property = (node: TuiNode, name: string, value: unknown): undefined =>
     });
     return undefined;
   }
-  // @ts-expect-error dynamic property access — same pattern as OpenTUI React reconciler (utils/index.ts:93)
-  node[name] = value;
+  writeDynamicProp(node, name, value);
   return undefined;
 };
 
@@ -1202,6 +1303,15 @@ const EMITTER_EVENT_MAP: Record<string, string> = {
   select: "itemSelected",
   selectionchange: "selectionChanged",
   error: "error",
+  // Slider value changes. `SliderRenderable` keeps its `onChange` option in a
+  // `private _onChange` assigned only by the constructor (`Slider.ts`, 0.4.5),
+  // so writing `node.onChange` after construction creates an own property
+  // nothing reads. Its `set value` accessor also does
+  // `this.emit("change", { value: clamped })`, which is observable — hence the
+  // emitter route. Kept as its own Lustre name rather than folded into
+  // `change` because the payloads differ: `InputRenderable` emits `change`
+  // with a bare string, the slider with `{ value }`.
+  sliderchange: "change",
 };
 
 // Keyboard events use property setters — once a node is focused (via the
@@ -1218,7 +1328,6 @@ const PROPERTY_EVENT_MAP: Record<string, string> = {
   cursorchange: "onCursorChange",
   contentchange: "onContentChange",
   highlight: "onHighlight",
-  sliderchange: "onChange",
 };
 
 // Store wrapped callbacks per node so we can remove them.
@@ -1231,6 +1340,76 @@ function getHandlers(node: TuiNode): Map<string, EventHandler> {
     nodeHandlers.set(node, handlers);
   }
   return handlers;
+}
+
+// Property-setter events fan out per OpenTUI property, not per Lustre event
+// name.
+//
+// OpenTUI's `onMouseDown`/`onKeyDown`/… setters each write ONE slot
+// (`_mouseListeners["down"]`, `_keyListeners["down"]`, `Renderable.ts` 0.4.5),
+// and several Lustre event names deliberately share a slot: `click` and
+// `mousedown` both map to `onMouseDown`, `keydown`/`keypress`/`keyup` all map
+// to `onKeyDown`. Assigning the slot directly per Lustre name meant the second
+// registration on a node silently overwrote the first, and removing either one
+// deleted the shared slot and killed the other — so `on_key_down` alongside
+// `on_key_up`, or `on_click` alongside `on_mouse_down`, only ever delivered
+// one of the pair. `nodeHandlers` is keyed by Lustre event name, so it never
+// noticed.
+//
+// This is about names that DIFFER but share a slot. Two attributes carrying
+// the SAME Lustre name (`on_key_down` + `on_activate`, both `keydown`) are
+// already collapsed a layer up, by the reconciler's own name-keyed handler map
+// (vdom/reconciler.ffi.mjs, `handlers.set(name, …)`), and nothing here can
+// recover them.
+//
+// Instead each property gets a single dispatcher installed on the node, backed
+// by a map keyed by Lustre event name: every registered name fires, and a
+// removal drops only its own entry, clearing the slot only once the last entry
+// is gone.
+type PropListener = (data: unknown) => void;
+
+const nodePropListeners = new WeakMap<
+  TuiNode,
+  Map<string, Map<string, PropListener>>
+>();
+
+function addPropListener(
+  node: TuiNode,
+  prop: string,
+  name: string,
+  listener: PropListener,
+): void {
+  let byProp = nodePropListeners.get(node);
+  if (!byProp) {
+    byProp = new Map();
+    nodePropListeners.set(node, byProp);
+  }
+  let byName = byProp.get(prop);
+  if (!byName) {
+    byName = new Map();
+    byProp.set(prop, byName);
+    // Bound to the map, not to a lookup: a later re-install (after the last
+    // listener was removed) allocates a fresh map and a fresh dispatcher, so a
+    // stale dispatcher can never resurrect a cleared slot. Iterating a copy
+    // keeps a handler that registers or removes listeners from disturbing the
+    // dispatch it is running inside.
+    const listeners = byName;
+    writeDynamicProp(node, prop, (data: unknown) => {
+      for (const fn of [...listeners.values()]) fn(data);
+    });
+  }
+  byName.set(name, listener);
+}
+
+function removePropListener(node: TuiNode, prop: string, name: string): void {
+  const byProp = nodePropListeners.get(node);
+  const byName = byProp?.get(prop);
+  if (!byProp || !byName) return;
+  byName.delete(name);
+  if (byName.size === 0) {
+    byProp.delete(prop);
+    writeDynamicProp(node, prop, null);
+  }
 }
 
 function fireEvent(
@@ -1277,9 +1456,9 @@ const add_event_listener = (
   // Mouse events → property setters.
   const mouseProp = MOUSE_PROP_MAP[name];
   if (mouseProp) {
-    // @ts-expect-error dynamic property access — same pattern as OpenTUI React reconciler (utils/index.ts:93)
-    node[mouseProp] = (data: unknown) =>
-      fireEvent(name, node, data, handler);
+    addPropListener(node, mouseProp, name, (data: unknown) =>
+      fireEvent(name, node, data, handler),
+    );
     return undefined;
   }
 
@@ -1288,8 +1467,8 @@ const add_event_listener = (
   // calls the node's onKeyDown callback.
   const kbProp = KEYBOARD_PROP_MAP[name];
   if (kbProp) {
-    // @ts-expect-error dynamic property access — same pattern as OpenTUI React reconciler (utils/index.ts:93)
-    node[kbProp] = (keyEvent: KeyEventData) => {
+    addPropListener(node, kbProp, name, (data: unknown) => {
+      const keyEvent = data as KeyEventData | undefined;
       const event = new TuiSyntheticEvent(name, node);
       event.detail = {
         key: keyEvent?.name ?? keyEvent?.key ?? "",
@@ -1300,16 +1479,16 @@ const add_event_listener = (
         super: !!keyEvent?.super,
       };
       handler(event);
-    };
+    });
     return undefined;
   }
 
   // Property setter events (cursor change, content change, etc.).
   const propEventProp = PROPERTY_EVENT_MAP[name];
   if (propEventProp) {
-    // @ts-expect-error dynamic property access — same pattern as OpenTUI React reconciler (utils/index.ts:93)
-    node[propEventProp] = (data: unknown) =>
-      fireEvent(name, node, data, handler);
+    addPropListener(node, propEventProp, name, (data: unknown) =>
+      fireEvent(name, node, data, handler),
+    );
     return undefined;
   }
 
@@ -1338,29 +1517,26 @@ const remove_event_listener = (
 
   // Paste property setter.
   if (name === "paste") {
-    // @ts-expect-error dynamic property clear with null — same pattern as OpenTUI React reconciler (utils/index.ts:28)
-    node.onPaste = null;
+    node.onPaste = undefined;
   }
 
-  // Mouse property setters.
+  // Mouse property setters. Drops only this event name's entry; the slot is
+  // cleared once it holds no more listeners.
   const mouseProp = MOUSE_PROP_MAP[name];
   if (mouseProp) {
-    // @ts-expect-error dynamic property clear with null — same pattern as OpenTUI React reconciler (utils/index.ts:28)
-    node[mouseProp] = null;
+    removePropListener(node, mouseProp, name);
   }
 
   // Keyboard property setters.
   const kbProp = KEYBOARD_PROP_MAP[name];
   if (kbProp) {
-    // @ts-expect-error dynamic property clear with null — same pattern as OpenTUI React reconciler (utils/index.ts:28)
-    node[kbProp] = null;
+    removePropListener(node, kbProp, name);
   }
 
   // Property setter events.
   const propEventProp = PROPERTY_EVENT_MAP[name];
   if (propEventProp) {
-    // @ts-expect-error dynamic property clear with null — same pattern as OpenTUI React reconciler (utils/index.ts:28)
-    node[propEventProp] = null;
+    removePropListener(node, propEventProp, name);
   }
 
   // EventEmitter events.

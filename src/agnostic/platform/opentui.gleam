@@ -137,6 +137,33 @@ pub type KittyConfig {
   )
 }
 
+/// Where the renderer owns terminal space, as accepted by
+/// [`screen_mode`](#screen_mode). Mirrors OpenTUI's `ScreenMode`:
+/// `AlternateScreen` uses the terminal's alternate buffer, `MainScreen` renders
+/// on the main screen, and `SplitFooter` keeps the renderer in a reserved
+/// footer on the main screen.
+///
+/// Held as an `Option(ScreenMode)`: [`default_config`](#default_config) leaves it
+/// `None`, which sends nothing so OpenTUI's own default applies.
+///
+pub type ScreenMode {
+  AlternateScreen
+  MainScreen
+  SplitFooter
+}
+
+/// What the built-in console overlay does, as accepted by
+/// [`console_mode`](#console_mode). Mirrors OpenTUI's `ConsoleMode`:
+/// `ConsoleOverlay` shows the overlay, `Disabled` turns it off.
+///
+/// Held as an `Option(ConsoleMode)`: [`default_config`](#default_config) leaves it
+/// `None`, which sends nothing so OpenTUI's own default applies.
+///
+pub type ConsoleMode {
+  ConsoleOverlay
+  Disabled
+}
+
 // EFFECT PHASES ---------------------------------------------------------------
 
 /// The phase name tagged by
@@ -170,7 +197,7 @@ pub opaque type Config {
     // Upstream OpenTUI options
     exit_on_ctrl_c: Option(Bool),
     exit_signals: Option(List(String)),
-    use_alternate_screen: Option(Bool),
+    screen_mode: Option(ScreenMode),
     use_mouse: Option(Bool),
     target_fps: Option(Int),
     max_fps: Option(Int),
@@ -178,7 +205,7 @@ pub opaque type Config {
     auto_focus: Option(Bool),
     enable_mouse_movement: Option(Bool),
     background_color: Option(String),
-    use_console: Option(Bool),
+    console_mode: Option(ConsoleMode),
     open_console_on_error: Option(Bool),
     kitty_keyboard: Option(KittyConfig),
     gather_stats: Option(Bool),
@@ -217,10 +244,11 @@ pub fn exit_signals(config: Config, value: List(Signal)) -> Config {
   Config(..config, exit_signals: Some(list.map(value, signal_to_string)))
 }
 
-/// Set whether to use the alternate screen buffer.
+/// Set where the renderer owns terminal space (alternate screen, main screen,
+/// or split footer). Not calling this defers to OpenTUI's own default.
 ///
-pub fn use_alternate_screen(config: Config, value: Bool) -> Config {
-  Config(..config, use_alternate_screen: Some(value))
+pub fn screen_mode(config: Config, mode: ScreenMode) -> Config {
+  Config(..config, screen_mode: Some(mode))
 }
 
 /// Set whether to enable mouse input.
@@ -270,10 +298,11 @@ pub fn background_color(config: Config, value: String) -> Config {
   Config(..config, background_color: Some(value))
 }
 
-/// Set whether to use the built-in console.
+/// Set what the built-in console overlay does. Not calling this defers to
+/// OpenTUI's own default.
 ///
-pub fn use_console(config: Config, value: Bool) -> Config {
-  Config(..config, use_console: Some(value))
+pub fn console_mode(config: Config, mode: ConsoleMode) -> Config {
+  Config(..config, console_mode: Some(mode))
 }
 
 /// Set whether to open console on error.
@@ -337,7 +366,7 @@ pub fn default_config() -> Config {
   Config(
     exit_on_ctrl_c: None,
     exit_signals: None,
-    use_alternate_screen: None,
+    screen_mode: None,
     use_mouse: None,
     target_fps: None,
     max_fps: None,
@@ -345,7 +374,7 @@ pub fn default_config() -> Config {
     auto_focus: None,
     enable_mouse_movement: None,
     background_color: None,
-    use_console: None,
+    console_mode: None,
     open_console_on_error: None,
     kitty_keyboard: None,
     gather_stats: None,

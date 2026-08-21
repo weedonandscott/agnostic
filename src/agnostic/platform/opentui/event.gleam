@@ -222,7 +222,7 @@ pub fn on_highlight(msg: msg) -> Attribute(msg) {
 ///
 pub fn on_slider_change(handler: fn(Float) -> msg) -> Attribute(msg) {
   event.on("sliderchange", {
-    use value <- decode.then(decode.at(["detail"], decode.float))
+    use value <- decode.then(decode.at(["detail", "value"], decode.float))
     decode.success(handler(value))
   })
 }

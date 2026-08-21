@@ -18,6 +18,12 @@ is preserved in [CHANGELOG_UPSTREAM.md](./CHANGELOG_UPSTREAM.md).
 
 ### Changed
 
+- [agnostic/platform/opentui] **Breaking:** `use_console(Bool)` and
+  `use_alternate_screen(Bool)` became `console_mode(ConsoleMode)` and
+  `screen_mode(ScreenMode)`, sum types matching OpenTUI's `consoleMode` /
+  `screenMode`; `screen_mode` can select `SplitFooter`, which the boolean
+  could not express.
+
 - [agnostic/platform/opentui] **Breaking:** Every renderer option on `Config` is
   now optional and unset by default, so `default_config` sends nothing for them
   and OpenTUI applies its own defaults instead of values agnostic supplied. Set

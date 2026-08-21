@@ -3,17 +3,15 @@
 import { BoxRenderable } from "@opentui/core";
 import type { CliRenderer, Renderable } from "@opentui/core";
 import { scheduleFrameCallback } from "../opentui.ffi.ts";
-
-// TYPES -----------------------------------------------------------------------
-
-interface TuiNode extends Renderable {
-  _parent?: Renderable;
-  [key: string]: unknown;
-}
+import type { TuiNode } from "../opentui.ffi.ts";
 
 // CONSTANTS -------------------------------------------------------------------
 
 const PORTAL_MARKER = Symbol("opentui-portal");
+
+interface PortalMarked {
+  readonly [PORTAL_MARKER]?: boolean;
+}
 
 export const PORTAL_TAG = "opentui-portal";
 
@@ -22,7 +20,7 @@ const TARGET_NOT_FOUND_TAG = "target-not-found";
 const TARGET_IS_PORTAL_TAG = "target-is-portal";
 
 export const isPortal = (node: Renderable): boolean =>
-  (node as any)[PORTAL_MARKER] === true;
+  (node as Renderable & PortalMarked)[PORTAL_MARKER] === true;
 
 // HELPERS ---------------------------------------------------------------------
 
@@ -46,8 +44,8 @@ function findDescendantById(
 
 // PORTAL RENDERABLE -----------------------------------------------------------
 
-export class PortalRenderable extends (BoxRenderable as any) {
-  [PORTAL_MARKER] = true;
+export class PortalRenderable extends BoxRenderable implements PortalMarked {
+  readonly [PORTAL_MARKER] = true;
 
   #renderer: CliRenderer;
   #children: TuiNode[] = [];
@@ -119,7 +117,7 @@ export class PortalRenderable extends (BoxRenderable as any) {
       return null;
     }
 
-    if ((target as any)[PORTAL_MARKER]) {
+    if ((target as Renderable & PortalMarked)[PORTAL_MARKER]) {
       this.#emitError(
         TARGET_IS_PORTAL_TAG,
         `The element "${this.#targetId}" is another portal.`,
@@ -145,7 +143,7 @@ export class PortalRenderable extends (BoxRenderable as any) {
       return null;
     }
 
-    if ((target as any)[PORTAL_MARKER]) {
+    if ((target as Renderable & PortalMarked)[PORTAL_MARKER]) {
       this.#emitError(
         TARGET_IS_PORTAL_TAG,
         `The element "${this.#targetId}" is another portal.`,
@@ -186,7 +184,8 @@ export class PortalRenderable extends (BoxRenderable as any) {
     }
   }
 
-  add(child: TuiNode): void {
+  override add(child: TuiNode): number {
+    const at = this.#children.length;
     this.#children.push(child);
     if (!this.#target) {
       this.#target = this.#resolveTarget();
@@ -194,25 +193,24 @@ export class PortalRenderable extends (BoxRenderable as any) {
     if (this.#target && !isDestroyed(child)) {
       this.#target.add(child);
     }
+    return at;
   }
 
-  insertBefore(child: TuiNode, reference: TuiNode | string): void {
+  override insertBefore(child: TuiNode, reference: TuiNode | string): number {
     const refId = typeof reference === "string" ? reference : reference?.id;
     const refIdx = this.#children.findIndex((c) => c.id === refId);
-    if (refIdx >= 0) {
-      this.#children.splice(refIdx, 0, child);
-    } else {
-      this.#children.push(child);
-    }
+    const at = refIdx >= 0 ? refIdx : this.#children.length;
+    this.#children.splice(at, 0, child);
     if (!this.#target) {
       this.#target = this.#resolveTarget();
     }
     if (this.#target && !isDestroyed(child)) {
       this.#target.insertBefore(child, reference);
     }
+    return at;
   }
 
-  remove(child: TuiNode): void {
+  override remove(child: TuiNode): void {
     this.#children = this.#children.filter((c) => c !== child);
     if (this.#target) {
       try {
@@ -223,13 +221,13 @@ export class PortalRenderable extends (BoxRenderable as any) {
     }
   }
 
-  getChildren(): TuiNode[] {
+  override getChildren(): TuiNode[] {
     return this.#children;
   }
 
   // -- Cleanup ----------------------------------------------------------------
 
-  destroySelf(): void {
+  override destroySelf(): void {
     const children = [...this.#children];
     this.#children = [];
 
