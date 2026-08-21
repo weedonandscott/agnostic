@@ -26,7 +26,10 @@ import {
 } from "./platform/base.ffi.mjs";
 import {
   Message$isEffectDispatchedMessage,
+  Message$EffectDispatchedMessage$message,
   Message$isEffectEmitEvent,
+  Message$EffectEmitEvent$name,
+  Message$EffectEmitEvent$data,
   Message$isSystemRequestedShutdown,
 } from "./headless.mjs";
 import { iterate } from "../internals/list.ffi.mjs";
@@ -190,9 +193,12 @@ export const make_component = (app, make_platform, name) => {
 
     send(message) {
       if (Message$isEffectDispatchedMessage(message)) {
-        this.dispatch(message.message, false);
+        this.dispatch(Message$EffectDispatchedMessage$message(message), false);
       } else if (Message$isEffectEmitEvent(message)) {
-        this.emit(message.name, message.data);
+        this.emit(
+          Message$EffectEmitEvent$name(message),
+          Message$EffectEmitEvent$data(message),
+        );
       } else if (Message$isSystemRequestedShutdown(message)) {
         // TODO
       }
@@ -252,14 +258,21 @@ export const make_component = (app, make_platform, name) => {
     }
 
     async #adoptStyleSheets() {
+      // `internals.shadowRoot` rather than `this.shadowRoot`: the latter is
+      // `null` whenever `open_shadow_root` is `False`. The constructor always
+      // leaves a shadow root attached — inherited from declarative shadow DOM
+      // or attached here — so the `null` in the `lib.dom` type is unreachable.
+      const shadowRoot = /** @type {ShadowRoot} */ (this.internals.shadowRoot);
+
+      // `adoptStylesheets` prepends each clone and returns those same nodes, so
+      // removing the popped node is the whole job. This loop used to also
+      // remove `firstChild` on every iteration, which took out a second,
+      // unrelated node — app content, once the style clones ran out.
       while (this.#adoptedStyleNodes.length) {
         this.#adoptedStyleNodes.pop().remove();
-        this.shadowRoot.firstChild.remove();
       }
 
-      this.#adoptedStyleNodes = await adoptStylesheets(
-        this.internals.shadowRoot,
-      );
+      this.#adoptedStyleNodes = await adoptStylesheets(shadowRoot);
     }
   };
 
@@ -291,30 +304,45 @@ export const make_component = (app, make_platform, name) => {
 
 //
 
+/**
+ * The host of a shadow root reached by the four helpers below is always the
+ * `Component` class defined in `make_component` above, which assigns
+ * `internals` in its constructor. That class is built at runtime, so `lib.dom`
+ * only knows the host as a plain `Element` and the property has to be spelled
+ * out here.
+ *
+ * @param {ShadowRoot} root
+ * @returns {ElementInternals}
+ */
+const hostInternals = (root) =>
+  /** @type {Element & { internals: ElementInternals }} */ (root.host).internals;
+
 export const set_form_value = (root, value) => {
   if (!is_browser()) return;
   if (root instanceof ShadowRoot) {
-    root.host.internals.setFormValue(value);
+    hostInternals(root).setFormValue(value);
   }
 };
 
 export const clear_form_value = (root) => {
   if (!is_browser()) return;
   if (root instanceof ShadowRoot) {
-    root.host.internals.setFormValue(undefined);
+    // `null` rather than `undefined`: `setFormValue` takes a nullable union, so
+    // WebIDL coerces both to the same thing, but only `null` is in the type.
+    hostInternals(root).setFormValue(null);
   }
 };
 
 export const set_pseudo_state = (root, value) => {
   if (!is_browser()) return;
   if (root instanceof ShadowRoot) {
-    root.host.internals.states.add(value);
+    hostInternals(root).states.add(value);
   }
 };
 
 export const remove_pseudo_state = (root, value) => {
   if (!is_browser()) return;
   if (root instanceof ShadowRoot) {
-    root.host.internals.states.delete(value);
+    hostInternals(root).states.delete(value);
   }
 };
