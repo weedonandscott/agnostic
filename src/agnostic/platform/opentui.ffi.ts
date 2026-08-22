@@ -68,23 +68,23 @@ interface TuiNode extends Renderable {
 }
 
 interface RendererConfig {
-  exit_on_ctrl_c: boolean;
+  exit_on_ctrl_c: Option$<boolean>;
   exit_signals: Option$<Iterable<string>>;
-  use_alternate_screen: boolean;
-  use_mouse: boolean;
-  target_fps: number;
-  max_fps: number;
-  debounce_delay: number;
-  auto_focus: boolean;
-  enable_mouse_movement: boolean;
-  use_console: boolean;
-  open_console_on_error: boolean;
-  gather_stats: boolean;
-  max_stat_samples: number;
-  use_thread: boolean;
-  remote: boolean;
-  background_color: Result<string, unknown>;
-  use_kitty_keyboard: boolean;
+  use_alternate_screen: Option$<boolean>;
+  use_mouse: Option$<boolean>;
+  target_fps: Option$<number>;
+  max_fps: Option$<number>;
+  debounce_delay: Option$<number>;
+  auto_focus: Option$<boolean>;
+  enable_mouse_movement: Option$<boolean>;
+  use_console: Option$<boolean>;
+  open_console_on_error: Option$<boolean>;
+  gather_stats: Option$<boolean>;
+  max_stat_samples: Option$<number>;
+  use_thread: Option$<boolean>;
+  remote: Option$<boolean>;
+  background_color: Option$<string>;
+  use_kitty_keyboard: Option$<boolean>;
   custom_elements: Iterable<[string, (renderer: CliRenderer) => TuiNode]>;
 }
 
@@ -269,28 +269,63 @@ function assertSupportedOpentui(): void {
 // RENDERER --------------------------------------------------------------------
 
 function create_renderer(config: RendererConfig): Promise<CliRenderer> {
-  const opts: Record<string, unknown> = {
-    exitOnCtrlC: config.exit_on_ctrl_c,
-    useAlternateScreen: config.use_alternate_screen,
-    useMouse: config.use_mouse,
-    targetFps: config.target_fps,
-    maxFps: config.max_fps,
-    debounceDelay: config.debounce_delay,
-    autoFocus: config.auto_focus,
-    enableMouseMovement: config.enable_mouse_movement,
-    useConsole: config.use_console,
-    openConsoleOnError: config.open_console_on_error,
-    gatherStats: config.gather_stats,
-    maxStatSamples: config.max_stat_samples,
-    useThread: config.use_thread,
-    remote: config.remote,
-  };
-  const bg = unwrapResult<string>(config.background_color);
-  if (bg) opts.backgroundColor = bg;
+  const opts: Record<string, unknown> = {};
+  if (is_some(config.exit_on_ctrl_c)) {
+    opts.exitOnCtrlC = Option$Some$0(config.exit_on_ctrl_c);
+  }
+  if (is_some(config.use_alternate_screen)) {
+    opts.useAlternateScreen = Option$Some$0(config.use_alternate_screen);
+  }
+  if (is_some(config.use_mouse)) {
+    opts.useMouse = Option$Some$0(config.use_mouse);
+  }
+  if (is_some(config.target_fps)) {
+    opts.targetFps = Option$Some$0(config.target_fps);
+  }
+  if (is_some(config.max_fps)) {
+    opts.maxFps = Option$Some$0(config.max_fps);
+  }
+  if (is_some(config.debounce_delay)) {
+    opts.debounceDelay = Option$Some$0(config.debounce_delay);
+  }
+  if (is_some(config.auto_focus)) {
+    opts.autoFocus = Option$Some$0(config.auto_focus);
+  }
+  if (is_some(config.enable_mouse_movement)) {
+    opts.enableMouseMovement = Option$Some$0(config.enable_mouse_movement);
+  }
+  if (is_some(config.use_console)) {
+    opts.useConsole = Option$Some$0(config.use_console);
+  }
+  if (is_some(config.open_console_on_error)) {
+    opts.openConsoleOnError = Option$Some$0(config.open_console_on_error);
+  }
+  if (is_some(config.gather_stats)) {
+    opts.gatherStats = Option$Some$0(config.gather_stats);
+  }
+  if (is_some(config.max_stat_samples)) {
+    opts.maxStatSamples = Option$Some$0(config.max_stat_samples);
+  }
+  if (is_some(config.use_thread)) {
+    opts.useThread = Option$Some$0(config.use_thread);
+  }
+  if (is_some(config.remote)) {
+    opts.remote = Option$Some$0(config.remote);
+  }
+  if (is_some(config.background_color)) {
+    opts.backgroundColor = Option$Some$0(config.background_color);
+  }
   if (is_some(config.exit_signals)) {
     opts.exitSignals = Array.from(Option$Some$0(config.exit_signals));
   }
-  if (config.use_kitty_keyboard) {
+  // useKittyKeyboard is an object option on OpenTUI (KittyKeyboardOptions |
+  // null), not a plain boolean: send the enabling object only when the user
+  // explicitly opted in. An unset field (None) — or an explicit false — leaves
+  // the key off the opts object, deferring to OpenTUI's own default.
+  if (
+    is_some(config.use_kitty_keyboard) &&
+    Option$Some$0(config.use_kitty_keyboard)
+  ) {
     opts.useKittyKeyboard = { disambiguate: true, alternateKeys: true };
   }
   return createCliRenderer(opts) as Promise<CliRenderer>;

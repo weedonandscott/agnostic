@@ -145,23 +145,25 @@ pub const after_flush_phase = "after_flush"
 ///
 pub opaque type Config {
   Config(
-    exit_on_ctrl_c: Bool,
+    // Upstream OpenTUI options
+    exit_on_ctrl_c: Option(Bool),
     exit_signals: Option(List(String)),
-    use_alternate_screen: Bool,
-    use_mouse: Bool,
-    target_fps: Int,
-    max_fps: Int,
-    debounce_delay: Int,
-    auto_focus: Bool,
-    enable_mouse_movement: Bool,
-    background_color: Result(String, Nil),
-    use_console: Bool,
-    open_console_on_error: Bool,
-    use_kitty_keyboard: Bool,
-    gather_stats: Bool,
-    max_stat_samples: Int,
-    use_thread: Bool,
-    remote: Bool,
+    use_alternate_screen: Option(Bool),
+    use_mouse: Option(Bool),
+    target_fps: Option(Int),
+    max_fps: Option(Int),
+    debounce_delay: Option(Int),
+    auto_focus: Option(Bool),
+    enable_mouse_movement: Option(Bool),
+    background_color: Option(String),
+    use_console: Option(Bool),
+    open_console_on_error: Option(Bool),
+    use_kitty_keyboard: Option(Bool),
+    gather_stats: Option(Bool),
+    max_stat_samples: Option(Int),
+    use_thread: Option(Bool),
+    remote: Option(Bool),
+    // Platform options
     custom_elements: List(#(String, ElementFactory)),
   )
 }
@@ -171,7 +173,7 @@ pub opaque type Config {
 /// Set whether Ctrl+C exits the application.
 ///
 pub fn exit_on_ctrl_c(config: Config, value: Bool) -> Config {
-  Config(..config, exit_on_ctrl_c: value)
+  Config(..config, exit_on_ctrl_c: Some(value))
 }
 
 /// Set which signals tear the renderer down, replacing OpenTUI's default list.
@@ -196,13 +198,13 @@ pub fn exit_signals(config: Config, value: List(Signal)) -> Config {
 /// Set whether to use the alternate screen buffer.
 ///
 pub fn use_alternate_screen(config: Config, value: Bool) -> Config {
-  Config(..config, use_alternate_screen: value)
+  Config(..config, use_alternate_screen: Some(value))
 }
 
 /// Set whether to enable mouse input.
 ///
 pub fn use_mouse(config: Config, value: Bool) -> Config {
-  Config(..config, use_mouse: value)
+  Config(..config, use_mouse: Some(value))
 }
 
 /// Set the target frames per second. Rendering is on-demand: this paces the
@@ -211,7 +213,7 @@ pub fn use_mouse(config: Config, value: Bool) -> Config {
 /// on state-change renders — those are paced by `max_fps`.
 ///
 pub fn target_fps(config: Config, value: Int) -> Config {
-  Config(..config, target_fps: value)
+  Config(..config, target_fps: Some(value))
 }
 
 /// Set the maximum frames per second. This paces on-demand frames — the
@@ -219,73 +221,73 @@ pub fn target_fps(config: Config, value: Int) -> Config {
 /// updates repaint.
 ///
 pub fn max_fps(config: Config, value: Int) -> Config {
-  Config(..config, max_fps: value)
+  Config(..config, max_fps: Some(value))
 }
 
 /// Set the debounce delay in milliseconds.
 ///
 pub fn debounce_delay(config: Config, value: Int) -> Config {
-  Config(..config, debounce_delay: value)
+  Config(..config, debounce_delay: Some(value))
 }
 
 /// Set whether to auto-focus the first focusable element.
 ///
 pub fn auto_focus(config: Config, value: Bool) -> Config {
-  Config(..config, auto_focus: value)
+  Config(..config, auto_focus: Some(value))
 }
 
 /// Set whether to enable mouse movement events.
 ///
 pub fn enable_mouse_movement(config: Config, value: Bool) -> Config {
-  Config(..config, enable_mouse_movement: value)
+  Config(..config, enable_mouse_movement: Some(value))
 }
 
 /// Set the background color.
 ///
 pub fn background_color(config: Config, value: String) -> Config {
-  Config(..config, background_color: Ok(value))
+  Config(..config, background_color: Some(value))
 }
 
 /// Set whether to use the built-in console.
 ///
 pub fn use_console(config: Config, value: Bool) -> Config {
-  Config(..config, use_console: value)
+  Config(..config, use_console: Some(value))
 }
 
 /// Set whether to open console on error.
 ///
 pub fn open_console_on_error(config: Config, value: Bool) -> Config {
-  Config(..config, open_console_on_error: value)
+  Config(..config, open_console_on_error: Some(value))
 }
 
 /// Set whether to use Kitty keyboard protocol.
 ///
 pub fn use_kitty_keyboard(config: Config, value: Bool) -> Config {
-  Config(..config, use_kitty_keyboard: value)
+  Config(..config, use_kitty_keyboard: Some(value))
 }
 
 /// Set whether to gather performance stats.
 ///
 pub fn gather_stats(config: Config, value: Bool) -> Config {
-  Config(..config, gather_stats: value)
+  Config(..config, gather_stats: Some(value))
 }
 
 /// Set the maximum number of stat samples to keep.
 ///
 pub fn max_stat_samples(config: Config, value: Int) -> Config {
-  Config(..config, max_stat_samples: value)
+  Config(..config, max_stat_samples: Some(value))
 }
 
 /// Set whether to use a separate thread for rendering.
 ///
 pub fn use_thread(config: Config, value: Bool) -> Config {
-  Config(..config, use_thread: value)
+  Config(..config, use_thread: Some(value))
 }
 
 /// Set whether to enable remote rendering.
 ///
 pub fn remote(config: Config, value: Bool) -> Config {
-  Config(..config, remote: value)
+  Config(..config, remote: Some(value))
 }
 
 /// Register a custom element factory for a tag name. Once registered,
@@ -309,23 +311,23 @@ pub fn register_element(
 ///
 pub fn default_config() -> Config {
   Config(
-    exit_on_ctrl_c: True,
+    exit_on_ctrl_c: None,
     exit_signals: None,
-    use_alternate_screen: True,
-    use_mouse: True,
-    target_fps: 30,
-    max_fps: 60,
-    debounce_delay: 0,
-    auto_focus: True,
-    enable_mouse_movement: False,
-    background_color: Error(Nil),
-    use_console: False,
-    open_console_on_error: False,
-    use_kitty_keyboard: False,
-    gather_stats: False,
-    max_stat_samples: 100,
-    use_thread: False,
-    remote: False,
+    use_alternate_screen: None,
+    use_mouse: None,
+    target_fps: None,
+    max_fps: None,
+    debounce_delay: None,
+    auto_focus: None,
+    enable_mouse_movement: None,
+    background_color: None,
+    use_console: None,
+    open_console_on_error: None,
+    use_kitty_keyboard: None,
+    gather_stats: None,
+    max_stat_samples: None,
+    use_thread: None,
+    remote: None,
     custom_elements: [],
   )
 }

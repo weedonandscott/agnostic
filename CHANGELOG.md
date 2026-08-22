@@ -16,6 +16,13 @@ is preserved in [CHANGELOG_UPSTREAM.md](./CHANGELOG_UPSTREAM.md).
 - [agnostic/platform/opentui] Added `Signal` and `exit_signals`, forwarding
   OpenTUI's `exitSignals` — previously its default list always applied.
 
+### Changed
+
+- [agnostic/platform/opentui] **Breaking:** Every renderer option on `Config` is
+  now optional and unset by default, so `default_config` sends nothing for them
+  and OpenTUI applies its own defaults instead of values agnostic supplied. Set
+  an option explicitly to pin its value.
+
 ## [v2.0.0] - 2026-08-11
 
 ### Added
