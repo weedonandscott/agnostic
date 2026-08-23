@@ -214,9 +214,40 @@ bun run typecheck               # Typecheck the TypeScript FFI
 gleam run -m build              # Regenerate the server-component bundle
 ```
 
-`bun run typecheck` first regenerates `types/gleam.d.ts` — the TypeScript
-declarations for the compiled Gleam modules that the `.ffi.ts` files import —
-and then runs `tsc --noEmit`. The declarations are generated from the build
-output and are not committed, so a fresh clone shows unresolved imports in
-`.ffi.ts` files until the first `gleam build --target javascript && bun run
-typecheck`.
+`bun run typecheck` runs `gleam build --target javascript` and then three
+TypeScript projects:
+
+| Project               | Checks                                                      |
+| --------------------- | ----------------------------------------------------------- |
+| `tsconfig.json`       | `examples/**/src/*.ts` — no Gleam module resolution needed   |
+| `tsconfig.ffi.json`   | the library's `.ffi.ts` files                                |
+| `tsconfig.ffi-js.json`| the `.ffi.mjs` files that carry the platform contract        |
+
+The last two check the *copies* Gleam places in `build/dev/javascript/agnostic/`,
+because the relative specifiers inside the FFI (`../../gleam.mjs`,
+`../../../agnostic/agnostic/element.mjs`) are written for that location, where
+each `X.mjs` resolves to the `X.d.mts` Gleam emits beside it. That is why the
+build has to run first.
+
+Those specifiers resolve to nothing at the files' own `src/` paths, so an editor
+opening an FFI file there would otherwise put it in a configless inferred
+project and report every import as missing. Two editor-only configs fix that:
+
+| Project                              | Serves                       |
+| ------------------------------------ | ---------------------------- |
+| `src/tsconfig.json`                   | `src/**/*.ffi.mjs`           |
+| `src/agnostic/platform/tsconfig.json` | the library's `.ffi.ts` files |
+
+`tsserver` finds them on its own — it walks up from the opened file to the
+nearest `tsconfig.json` that includes it — and each mirrors the compiler options
+of its gate counterpart, so the editor's verdict matches CI's. They resolve the
+build copies through `rootDirs`, which is a permissive union: it also accepts a
+*wrong* `../` depth that the build-copy projects correctly reject. That is why
+they are deliberately **not** part of `bun run typecheck`. CI remains the
+authority; these only exist to make the files readable in an editor. They need
+`gleam build --target javascript` to have run, same as the gate.
+
+`skipLibCheck` stays on. Note what that still hides: Gleam emits a `.d.mts`
+beside every compiled module, and those are declaration files too, so they are
+skipped along with `node_modules`. Turning it off is blocked on a typing error
+in `@opentui/core` itself.

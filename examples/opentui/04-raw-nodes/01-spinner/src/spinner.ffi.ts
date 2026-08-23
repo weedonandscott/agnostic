@@ -24,6 +24,7 @@ class FrameBufferSpinner extends FrameBufferRenderable {
     this.#intervalId = setInterval(() => {
       this.#frameIndex = (this.#frameIndex + 1) % SPINNER_FRAMES.length;
       this.frameBuffer.setCell(0, 0, SPINNER_FRAMES[this.#frameIndex]!, this.#fg, this.#bg);
+      this.requestRender();
     }, interval_ms);
   }
 

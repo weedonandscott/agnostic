@@ -33,25 +33,38 @@ export class ServerComponent extends HTMLElement {
   }
 
   #shadowRoot;
+  /** @type {"ws" | "sse" | "polling"} */
   #method = "ws";
+  /** @type {URL | null} */
   #route = null;
+  /** @type {string | null} */
   #csrfToken = null;
+  /** @type {WebsocketTransport | SseTransport | PollingTransport | null} */
   #transport = null;
+  /** @type {ChildNode[]} */
   #adoptedStyleNodes = [];
   #reconciler;
+  /** @type {Set<string>} */
   #remoteObservedAttributes = new Set();
+  /** @type {Set<string>} */
   #remoteObservedProperties = new Set();
   #connected = false;
+  /** @type {[string, string | null][]} */
   #changedAttributesQueue = [];
   #contexts = new Map();
+  /** @type {Map<string, () => void>} */
   #contextSubscriptions = new Map();
 
   #observer = new MutationObserver((mutations) => {
+    /** @type {[string, string | null][]} */
     const attributes = [];
 
     for (const mutation of mutations) {
       if (mutation.type !== "attributes") continue;
       const name = mutation.attributeName;
+      // Always set for an `attributes` mutation, but the DOM types do not say
+      // so.
+      if (name === null) continue;
 
       if (!this.#connected || this.#remoteObservedAttributes.has(name)) {
         attributes.push([name, this.getAttribute(name)]);
@@ -59,7 +72,10 @@ export class ServerComponent extends HTMLElement {
     }
 
     if (attributes.length === 1) {
-      const [name, value] = attributes[0];
+      const [name, value] = /** @type {[string, string | null]} */ (
+        attributes[0]
+      );
+
       this.#transport?.send({ kind: attribute_changed_kind, name, value });
     } else if (attributes.length) {
       this.#transport?.send({
@@ -95,7 +111,9 @@ export class ServerComponent extends HTMLElement {
       case prev !== next && "route": {
         this.#route = new URL(next, location.href);
         this.#csrfToken = this.#getCsrfToken();
-        this.#route.searchParams.set("csrf-token", this.#csrfToken);
+        // `#getCsrfToken` can return null; `String` reproduces exactly what
+        // `URLSearchParams.set` already did with it.
+        this.#route.searchParams.set("csrf-token", String(this.#csrfToken));
 
         this.#connect();
         return;
@@ -108,7 +126,9 @@ export class ServerComponent extends HTMLElement {
         if (["ws", "sse", "polling"].includes(normalised)) {
           this.#method = normalised;
 
-          if (this.#method == "ws") {
+          // `route` may not have been set yet — `method` can be assigned
+          // first. The `csrf-token` branch below already guards the same way.
+          if (this.#method == "ws" && this.#route) {
             if (this.#route.protocol == "https:") this.#route.protocol = "wss:";
             if (this.#route.protocol == "http:") this.#route.protocol = "ws:";
           }
@@ -127,7 +147,9 @@ export class ServerComponent extends HTMLElement {
         this.#csrfToken = this.#getCsrfToken();
 
         if (this.#route) {
-          this.#route.searchParams.set("csrf-token", this.#csrfToken);
+          // `#getCsrfToken` can return null; `String` reproduces exactly what
+        // `URLSearchParams.set` already did with it.
+        this.#route.searchParams.set("csrf-token", String(this.#csrfToken));
         }
 
         if (this.#connected) {
@@ -210,7 +232,9 @@ export class ServerComponent extends HTMLElement {
         }
 
         if (messages.length) {
-          this.#transport.send({
+          // Every other `send` in this file is optional-chained; this one was
+          // not.
+          this.#transport?.send({
             kind: batch_kind,
             messages,
           });
@@ -336,7 +360,7 @@ export class ServerComponent extends HTMLElement {
         });
 
         this.#contextSubscriptions.get(key)?.();
-        this.#contextSubscriptions.set(unsubscribe);
+        this.#contextSubscriptions.set(key, unsubscribe);
       }),
     );
   }
@@ -371,12 +395,14 @@ export class ServerComponent extends HTMLElement {
 
     const onConnect = () => {
       this.#connected = true;
-      this.dispatchEvent(new CustomEvent("lustre:connect"), {
-        detail: {
-          route: this.#route,
-          method: this.#method,
-        },
-      });
+      this.dispatchEvent(
+        new CustomEvent("lustre:connect", {
+          detail: {
+            route: this.#route,
+            method: this.#method,
+          },
+        }),
+      );
     };
 
     const onMessage = (data) => {
@@ -420,9 +446,12 @@ export class ServerComponent extends HTMLElement {
   //
 
   async #adoptStyleSheets() {
+    // See the matching loop in `web_component.ffi.mjs`: the popped node is the
+    // prepended clone, so removing it is sufficient. Removing `firstChild` as
+    // well took out a second, unrelated node.
     while (this.#adoptedStyleNodes.length) {
-      this.#adoptedStyleNodes.pop().remove();
-      this.#shadowRoot.firstChild.remove();
+      // The loop condition guarantees a value.
+      /** @type {ChildNode} */ (this.#adoptedStyleNodes.pop()).remove();
     }
 
     this.#adoptedStyleNodes = await adoptStylesheets(this.#shadowRoot);
@@ -717,7 +746,10 @@ class PollingTransport {
   #onMessage;
   #onClose;
 
-  constructor(url, { onConnect, onMessage, onClose, csrfToken, interval }) {
+  constructor(
+    url,
+    { onConnect, onMessage, onClose, csrfToken, interval = undefined },
+  ) {
     this.#url = url;
     this.#csrfToken = csrfToken;
     this.#interval = interval ?? 5000;

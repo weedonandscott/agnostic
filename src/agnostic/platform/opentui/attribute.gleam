@@ -166,15 +166,6 @@ pub fn live(value: Bool) -> Attribute(msg) {
   }
 }
 
-/// Enable or disable layout participation.
-///
-pub fn enable_layout(value: Bool) -> Attribute(msg) {
-  case value {
-    True -> attribute("enable-layout", "true")
-    False -> attribute("enable-layout", "false")
-  }
-}
-
 /// Enable or disable text selection.
 ///
 pub fn selectable(value: Bool) -> Attribute(msg) {
@@ -710,13 +701,7 @@ pub fn truncate(value: Bool) -> Attribute(msg) {
 
 // CODE / MARKDOWN -------------------------------------------------------------
 
-/// Set the programming language for syntax highlighting.
-///
-pub fn language(value: String) -> Attribute(msg) {
-  attribute("language", value)
-}
-
-/// Set the filetype (alias for language).
+/// Set the filetype used for syntax highlighting: "gleam", "rust", etc.
 ///
 pub fn filetype(value: String) -> Attribute(msg) {
   attribute("filetype", value)

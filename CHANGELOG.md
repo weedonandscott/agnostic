@@ -11,6 +11,79 @@ is preserved in [CHANGELOG_UPSTREAM.md](./CHANGELOG_UPSTREAM.md).
 
 ## [Unreleased]
 
+## [v3.0.0] - 2026-08-22
+
+### Added
+
+- [agnostic/platform/opentui] Added `Signal` and `exit_signals`, forwarding
+  OpenTUI's `exitSignals` — previously its default list always applied.
+
+### Removed
+
+- [agnostic/platform/opentui] **Breaking:** Removed `attribute.enable_layout`.
+  `enableLayout` is a construction option in OpenTUI, never an instance
+  property, so the attribute wrote a value nothing read.
+- [agnostic/platform/opentui] **Breaking:** Removed `attribute.language`, since
+  it is absent from OpenTUI as well.
+
+### Changed
+
+- [agnostic/platform/opentui] **Breaking:** `use_console(Bool)` and
+  `use_alternate_screen(Bool)` became `console_mode(ConsoleMode)` and
+  `screen_mode(ScreenMode)`, sum types matching OpenTUI's `consoleMode` /
+  `screenMode`; `screen_mode` can select `SplitFooter`, which the boolean
+  could not express.
+
+- [agnostic/platform/opentui] **Breaking:** Every renderer option on `Config` is
+  now optional and unset by default, so `default_config` sends nothing for them
+  and OpenTUI applies its own defaults instead of values agnostic supplied. Set
+  an option explicitly to pin its value.
+- [agnostic/platform/opentui] **Breaking:** Replaced `config.use_kitty_keyboard`
+  (a `Bool`) with `config.with_kitty_keyboard` taking a `KittyConfig` sum type —
+  `KittyOff` (all flags off) or `KittyOn` with all five OpenTUI flags. Not
+  calling it will use OpenTUI's defaults.
+- [agnostic/platform/opentui] **Breaking:** `event.on_slider_change` now decodes
+  `detail.value`. It previously read a payload shape the slider never emits, via
+  a property the slider never reads.
+- [agnostic/platform/opentui] **Breaking:** `config.use_console(False)` now
+  disables OpenTUI's console capture instead of enabling an overlay that is
+  never shown. Console output reaches the terminal, which under the default
+  alternate screen means it interleaves with the rendered UI — OpenTUI's
+  `externalOutputMode` defaults to passthrough. Applications that log should
+  either keep the capture on or write somewhere other than stdout.
+- [agnostic/platform/opentui] Moved the supported `@opentui/core` version to 0.5.6.
+- [agnostic/platform/opentui] On 0.5.6, OpenTUI honours its frame-rate cap, so
+  `after_flush` effects fire less often under bursty updates than on 0.4.5.
+- [agnostic/platform/opentui] On 0.5.6, a handler that panics on a mouse event
+  no longer resets OpenTUI's stdin parser.
+- [agnostic/platform/opentui] `config.use_alternate_screen` now takes effect.
+  The `False` case previously left the alternate screen enabled.
+- [agnostic/platform/opentui] Built-in elements are constructed against their
+  own OpenTUI option types, so a missing required option fails to compile.
+- [tooling] The JavaScript test suite runs on Bun. OpenTUI's native library does
+  not load on Node, so its platform FFI could not be tested at all.
+- [tooling] Editor-only tsconfigs under `src/` resolve the FFI's build-relative
+  imports in place, so opening one no longer reports every import as missing.
+  `bun run typecheck` is unchanged and remains the authority.
+
+### Fixed
+
+- [agnostic/runtime] The JavaScript headless runtime no longer dies with a
+  `ReferenceError` on its first dispatched effect, and messages inside a `Batch`
+  keep their model updates instead of being reverted.
+- [agnostic/runtime] Server component context subscriptions are keyed, so they
+  can be found and cleaned up, and `lustre:connect` carries its `detail`.
+- [agnostic/runtime] Adopting stylesheets no longer removes a node of
+  application content per adopted sheet, and works with a closed shadow root.
+- [agnostic/platform/opentui] `code` and `markdown` elements are constructed
+  with the syntax style they require, so highlighting no longer fails into a
+  swallowed warning.
+- [agnostic/platform/opentui] Event names that share an OpenTUI listener slot no
+  longer clobber one another — `on_click` with `on_mouse_down`, or `on_key_down`
+  with `on_key_up`, now both fire, and removing one leaves the other alive.
+- [agnostic/platform/opentui] `event.on_size_change` fires again, retargeted from
+  the root-only `resized` event to OpenTUI 0.5.6's per-node `resize` emit.
+
 ## [v2.0.0] - 2026-08-11
 
 ### Added

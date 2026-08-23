@@ -1,14 +1,14 @@
 {
   "name": "agnostic",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "type": "module",
   "private": true,
   "license": "MIT",
   "scripts": {
-    "typecheck": "bun scripts/generate-gleam-types.ts && tsc --noEmit"
+    "typecheck": "gleam build --target javascript && tsc -p tsconfig.json && tsc -p tsconfig.ffi.json && tsc -p tsconfig.ffi-js.json"
   },
   "devDependencies": {
-    "@opentui/core": "0.4.5",
+    "@opentui/core": "0.5.6",
     "@types/bun": "^1.3.14",
     "typescript": "^6.0.3"
   }

@@ -1,5 +1,5 @@
 name = "agnostic"
-version = "2.0.0"
+version = "3.0.0"
 gleam = ">= 1.13.0"
 
 description = "A platform agnostic Elm-like framework (soft-fork of Lustre)"
@@ -8,6 +8,7 @@ licences = ["MIT"]
 
 [javascript]
 typescript_declarations = true
+runtime = "bun"
 
 links = [
     { title = "Sponsor", href = "https://github.com/sponsors/hayleigh-dot-dev" },

@@ -3,7 +3,10 @@
 import { Runtime } from "./platform/base.ffi.mjs";
 import {
   Message$isEffectDispatchedMessage,
+  Message$EffectDispatchedMessage$message,
   Message$isEffectEmitEvent,
+  Message$EffectEmitEvent$name,
+  Message$EffectEmitEvent$data,
   Message$isSystemRequestedShutdown,
 } from "./headless.mjs";
 
@@ -18,16 +21,19 @@ export class Platform {
 
   send(message) {
     if (Message$isEffectDispatchedMessage(message)) {
-      this.dispatch(message.message, false);
+      this.dispatch(Message$EffectDispatchedMessage$message(message), false);
     } else if (Message$isEffectEmitEvent(message)) {
-      this.emit(message.name, message.data);
+      this.emit(
+        Message$EffectEmitEvent$name(message),
+        Message$EffectEmitEvent$data(message),
+      );
     } else if (Message$isSystemRequestedShutdown(message)) {
       // TODO
     }
   }
 
-  dispatch(message) {
-    this.#runtime.dispatch(message);
+  dispatch(message, shouldFlush = false) {
+    this.#runtime.dispatch(message, shouldFlush);
   }
 
   emit(event, data) {
