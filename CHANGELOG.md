@@ -11,6 +11,11 @@ is preserved in [CHANGELOG_UPSTREAM.md](./CHANGELOG_UPSTREAM.md).
 
 ## [Unreleased]
 
+## [v4.0.0] - 2026-09-16
+
+No breaking changes. The major bump denotes the move to Bun 1.4, which rewrote
+Bun from Zig to Rust.
+
 ### Changed
 
 - [agnostic/platform/opentui] Moved the supported `@opentui/core` version to
