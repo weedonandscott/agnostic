@@ -183,7 +183,7 @@ const writeDynamicProp = (
 // compile error here, not a TypeError at element-creation time — which is what
 // the four non-empty option objects below exist for (`SliderOptions
 // .orientation`, `Code`/`MarkdownOptions.syntaxStyle`, `FrameBufferOptions
-// .width`/`.height` are all non-optional in @opentui/core 0.5.6).
+// .width`/`.height` are all non-optional in @opentui/core 0.5.11).
 //
 // This replaces a `Record<string, { new (r, opts: Record<string, unknown>) }>`
 // whose uniform `as unknown as` casts erased exactly those requirements.
@@ -213,9 +213,9 @@ const RENDERABLE_FACTORIES: Record<string, RenderableFactory> = {
 };
 
 // `CodeOptions.syntaxStyle` and `MarkdownOptions.syntaxStyle` are non-optional
-// in @opentui/core 0.5.6, but neither constructor validates or defaults them:
+// in @opentui/core 0.5.11, but neither constructor validates or defaults them:
 // the field is stored as-is and only dereferenced later, inside
-// `treeSitterToTextChunks` (`lib/tree-sitter-styled-text.ts:46`
+// `treeSitterToTextChunks` (`lib/tree-sitter-styled-text.ts:48`
 // `syntaxStyle.getStyle("default")`), where `undefined` throws a TypeError that
 // Code.ts swallows into `console.warn("Code highlighting failed, ...")`. The
 // same package treats the field as optional elsewhere and defaults it with
@@ -226,7 +226,7 @@ const RENDERABLE_FACTORIES: Record<string, RenderableFactory> = {
 // library, which must not happen at module-import time, and it owns a native
 // handle we would otherwise allocate once per element. Neither CodeRenderable
 // nor MarkdownRenderable destroys an option-supplied syntaxStyle (only
-// TextBufferRenderable's own internal one, `TextBufferRenderable.ts:487`), so
+// TextBufferRenderable's own internal one, `TextBufferRenderable.ts:508`), so
 // sharing one instance across every node is safe.
 //
 // NOTE: this registers no styles, so highlighting resolves every capture group
@@ -298,7 +298,7 @@ const FLOAT_PROPS = new Set(["opacity"]);
 // projects install themselves. Enforce it here, at platform construction.
 // Exact version: the single @opentui/core release this platform is developed
 // and tested against.
-const SUPPORTED_OPENTUI_VERSION = "0.5.6";
+const SUPPORTED_OPENTUI_VERSION = "0.5.11";
 
 // The version of @opentui/core this process actually resolved, read from its
 // package.json. The exports map doesn't expose "./package.json", so resolve
@@ -1306,7 +1306,7 @@ const EMITTER_EVENT_MAP: Record<string, string> = {
   // Per-node size-change signal. OpenTUI's per-element `onResize()` fires
   // `this.emit("resize")` (a bare, payload-free event) from `updateFromLayout`
   // whenever the node's computed size changes, first layout included
-  // (`Renderable.ts` onResize/onLayoutResize, @opentui/core 0.5.6). The
+  // (`Renderable.ts` onResize/onLayoutResize, @opentui/core 0.5.11). The
   // `"resized"` event with `{width,height}` is emitted only by
   // `RootRenderable.resize()` and does not bubble, so subscribing an element to
   // it never fired — hence this targets the per-node `"resize"` emit instead.
@@ -1318,7 +1318,7 @@ const EMITTER_EVENT_MAP: Record<string, string> = {
   selectionchange: "selectionChanged",
   error: "error",
   // Slider value changes. `SliderRenderable` keeps its `onChange` option in a
-  // `private _onChange` assigned only by the constructor (`Slider.ts`, 0.5.6),
+  // `private _onChange` assigned only by the constructor (`Slider.ts`, 0.5.11),
   // so writing `node.onChange` after construction creates an own property
   // nothing reads. Its `set value` accessor also does
   // `this.emit("change", { value: clamped })`, which is observable — hence the
@@ -1360,7 +1360,7 @@ function getHandlers(node: TuiNode): Map<string, EventHandler> {
 // name.
 //
 // OpenTUI's `onMouseDown`/`onKeyDown`/… setters each write ONE slot
-// (`_mouseListeners["down"]`, `_keyListeners["down"]`, `Renderable.ts` 0.5.6),
+// (`_mouseListeners["down"]`, `_keyListeners["down"]`, `Renderable.ts` 0.5.11),
 // and several Lustre event names deliberately share a slot: `click` and
 // `mousedown` both map to `onMouseDown`, `keydown`/`keypress`/`keyup` all map
 // to `onKeyDown`. Assigning the slot directly per Lustre name meant the second

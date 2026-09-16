@@ -11,6 +11,12 @@ is preserved in [CHANGELOG_UPSTREAM.md](./CHANGELOG_UPSTREAM.md).
 
 ## [Unreleased]
 
+### Changed
+
+- [agnostic/platform/opentui] Moved the supported `@opentui/core` version to
+  0.5.11.
+- [tooling] Moved the pinned Bun version to 1.4.2.
+
 ## [v3.0.0] - 2026-08-22
 
 ### Added
