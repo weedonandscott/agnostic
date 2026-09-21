@@ -5,6 +5,7 @@
 // IMPORTS ---------------------------------------------------------------------
 
 import agnostic/attribute.{type Attribute, attribute, property}
+import agnostic/platform/opentui/syntax
 import gleam/float
 import gleam/int
 import gleam/json.{type Json}
@@ -740,8 +741,40 @@ pub fn streaming(value: Bool) -> Attribute(msg) {
   }
 }
 
-// NOTE: syntax_style and tree_sitter_client require class instances from
-// @opentui/core. These can be added with proper FFI constructors when needed.
+/// Set the syntax highlighting style of a code, markdown, or diff element, by
+/// the name it was registered under with
+/// [`opentui.register_syntax_style`](../opentui.html#register_syntax_style).
+///
+/// > **Note**: a name that was never registered leaves the element unstyled.
+///
+pub fn syntax_style(name: String) -> Attribute(msg) {
+  attribute("syntax-style", name)
+}
+
+/// Set the syntax highlighting style of a code, markdown, or diff element from
+/// a style defined inline, without registering it on the config. The style is
+/// built once and shared with every element selecting its name with
+/// [`syntax_style`](#syntax_style), anywhere in the same render or later.
+///
+/// > **Note**: elements that selected the name in an earlier render, before
+/// > it was defined, keep the unstyled default.
+///
+pub fn define_syntax_style(
+  name: String,
+  styles: List(syntax.Style),
+) -> Attribute(msg) {
+  property(
+    "syntaxStyle",
+    json.object([
+      #("name", json.string(name)),
+      #("styles", syntax.to_json(styles)),
+    ]),
+  )
+}
+
+// NOTE: tree_sitter_client requires a class instance from @opentui/core. It
+// can be added with a proper FFI constructor when needed; until then `code`
+// falls back to a process-wide singleton client.
 
 // OVERFLOW --------------------------------------------------------------------
 

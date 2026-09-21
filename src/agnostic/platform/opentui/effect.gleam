@@ -1087,8 +1087,7 @@ fn nearest_edge_delta(
     True, False if element_size <= viewport_size ->
       element_start - viewport_start
     True, False if element_size > viewport_size -> element_end - viewport_end
-    False, True if element_size > viewport_size ->
-      element_start - viewport_start
+    False, True if element_size > viewport_size -> element_start - viewport_start
     False, True if element_size <= viewport_size -> element_end - viewport_end
     _, _ -> 0
   }

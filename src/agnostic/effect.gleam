@@ -88,10 +88,7 @@ import gleam/erlang/process.{type Selector, type Subject}
 
 // CONSTANTS -------------------------------------------------------------------
 
-const empty: Effect(message) = Effect(
-  constants.empty_list,
-  constants.empty_list,
-)
+const empty: Effect(message) = Effect(constants.empty_list, constants.empty_list)
 
 // TYPES -----------------------------------------------------------------------
 
