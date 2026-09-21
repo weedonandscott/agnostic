@@ -11,6 +11,8 @@ is preserved in [CHANGELOG_UPSTREAM.md](./CHANGELOG_UPSTREAM.md).
 
 ## [Unreleased]
 
+## [v4.1.0] - 2026-09-21
+
 ### Added
 
 - [agnostic/platform/opentui] Added `opentui/syntax`, `register_syntax_style`
