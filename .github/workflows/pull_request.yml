@@ -18,7 +18,7 @@ jobs:
         with:
           otp-version: "27.0"
           rebar3-version: "3"
-          gleam-version: "1.17.0"
+          gleam-version: "1.18.1"
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
@@ -47,7 +47,7 @@ jobs:
         with:
           otp-version: "27.0"
           rebar3-version: "3"
-          gleam-version: "1.17.0"
+          gleam-version: "1.18.1"
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
