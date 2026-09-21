@@ -5,6 +5,8 @@
 
 // IMPORTS ---------------------------------------------------------------------
 
+import agnostic/platform/opentui/syntax
+import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 
@@ -214,6 +216,7 @@ pub opaque type Config {
     remote: Option(Bool),
     // Platform options
     custom_elements: List(#(String, ElementFactory)),
+    syntax_styles: List(#(String, Json)),
   )
 }
 
@@ -350,12 +353,32 @@ pub fn remote(config: Config, value: Bool) -> Config {
 /// Built-in tags (box, text, input, etc.) cannot be overridden — custom
 /// factories are only consulted when no built-in renderable matches.
 ///
+/// > **Note**: registering the same tag twice keeps the first registration.
+///
 pub fn register_element(
   config: Config,
   tag: String,
   factory: ElementFactory,
 ) -> Config {
   Config(..config, custom_elements: [#(tag, factory), ..config.custom_elements])
+}
+
+/// Register a named syntax highlighting style for use with
+/// [`attribute.syntax_style`](./opentui/attribute.html#syntax_style). Styles
+/// are built with the [`opentui/syntax`](./opentui/syntax.html) module.
+///
+/// > **Note**: registering the same name twice keeps the first registration,
+/// > like [`register_element`](#register_element).
+///
+pub fn register_syntax_style(
+  config: Config,
+  name: String,
+  styles: List(syntax.Style),
+) -> Config {
+  Config(..config, syntax_styles: [
+    #(name, syntax.to_json(styles)),
+    ..config.syntax_styles
+  ])
 }
 
 // CONSTRUCTORS ----------------------------------------------------------------
@@ -382,6 +405,7 @@ pub fn default_config() -> Config {
     use_thread: None,
     remote: None,
     custom_elements: [],
+    syntax_styles: [],
   )
 }
 

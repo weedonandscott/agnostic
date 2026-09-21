@@ -11,6 +11,13 @@ is preserved in [CHANGELOG_UPSTREAM.md](./CHANGELOG_UPSTREAM.md).
 
 ## [Unreleased]
 
+### Added
+
+- [agnostic/platform/opentui] Added `opentui/syntax`, `register_syntax_style`
+  and `attribute.syntax_style` for syntax highlighting themes.
+- [agnostic/platform/opentui] Added `attribute.define_syntax_style` for
+  defining a theme inline on an element.
+
 ## [v4.0.0] - 2026-09-16
 
 No breaking changes. The major bump denotes the move to Bun 1.4, which rewrote

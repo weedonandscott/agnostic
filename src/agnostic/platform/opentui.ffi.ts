@@ -18,10 +18,16 @@ import {
   LineNumberRenderable,
   SliderRenderable,
   FrameBufferRenderable,
+  EditBufferRenderable,
   SyntaxStyle,
   TextAttributes,
 } from "@opentui/core";
-import type { CliRenderer, CliRendererConfig, Renderable } from "@opentui/core";
+import type {
+  CliRenderer,
+  CliRendererConfig,
+  Renderable,
+  StyleDefinitionInput,
+} from "@opentui/core";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -104,6 +110,7 @@ interface RendererConfig {
   background_color: Option$<string>;
   kitty_keyboard: Option$<KittyConfig$>;
   custom_elements: Iterable<[string, (renderer: CliRenderer) => TuiNode]>;
+  syntax_styles: Iterable<[string, Record<string, StyleDefinitionInput>]>;
 }
 
 interface KeyEventData {
@@ -229,9 +236,10 @@ const RENDERABLE_FACTORIES: Record<string, RenderableFactory> = {
 // TextBufferRenderable's own internal one, `TextBufferRenderable.ts:508`), so
 // sharing one instance across every node is safe.
 //
-// NOTE: this registers no styles, so highlighting resolves every capture group
-// to "no style" and code renders unstyled — the same output as today, minus the
-// exception. Actual colours need a theme; see `attribute.gleam:758`.
+// NOTE: this registers no styles, so every capture resolves to "no style" and
+// code renders unstyled — the same output as a missing syntaxStyle, minus the
+// exception. It is the construction-time default and what remove_attribute
+// restores; themes with colours live in SYNTAX_STYLES.
 let _defaultSyntaxStyle: SyntaxStyle | null = null;
 
 function defaultSyntaxStyle(): SyntaxStyle {
@@ -244,6 +252,29 @@ const CUSTOM_ELEMENT_REGISTRY = new Map<
   string,
   (renderer: CliRenderer) => TuiNode
 >();
+
+// Named syntax style registry: style name → SyntaxStyle. Filled from
+// config.syntax_styles in platform(). A name first seen on an element gets a
+// blank table, kept in PENDING_SYNTAX_STYLES until the first
+// `define_syntax_style` of that name fills it in place. Holders do not see the
+// fill as a change, but highlighting is async and runs after the reconcile, so
+// a holder created earlier in the same render still picks it up.
+//
+// Never destroyed: instances are shared. DiffRenderable and MarkdownRenderable
+// hand theirs to the CodeRenderables they build, so freeing one breaks every
+// node still holding it.
+const SYNTAX_STYLES = new Map<string, SyntaxStyle>();
+const PENDING_SYNTAX_STYLES = new Set<SyntaxStyle>();
+
+const syntaxStyleNamed = (name: string): SyntaxStyle => {
+  let style = SYNTAX_STYLES.get(name);
+  if (style === undefined) {
+    style = SyntaxStyle.create();
+    SYNTAX_STYLES.set(name, style);
+    PENDING_SYNTAX_STYLES.add(style);
+  }
+  return style;
+};
 
 // Properties that must be integers for OpenTUI's Yoga layout engine.
 const NUMERIC_PROPS = new Set([
@@ -438,6 +469,23 @@ export function platform(
     CUSTOM_ELEMENT_REGISTRY.clear();
     for (const entry of config.custom_elements) {
       CUSTOM_ELEMENT_REGISTRY.set(entry[0], entry[1]);
+    }
+
+    // SyntaxStyle.fromStyles resolves the native render library, so this
+    // cannot run at import time. clear() leaks the previous set's native
+    // tables; a second platform() call is unsupported anyway (_renderer is a
+    // module global).
+    SYNTAX_STYLES.clear();
+    PENDING_SYNTAX_STYLES.clear();
+    // The list is newest-first, so the last write wins — the earliest
+    // registration, matching register_element. Dedupe before building so a
+    // shadowed name never allocates a table that is then dropped unfreed.
+    const declared = new Map<string, Record<string, StyleDefinitionInput>>();
+    for (const entry of config.syntax_styles) {
+      declared.set(entry[0], entry[1]);
+    }
+    for (const [name, styles] of declared) {
+      SYNTAX_STYLES.set(name, SyntaxStyle.fromStyles(styles));
     }
 
     // The `frame_callbacks` phase anchors on OpenTUI's awaited frameCallbacks
@@ -989,6 +1037,7 @@ const ATTR_MAP: Record<string, string> = {
   conceal: "conceal",
   "draw-unstyled-text": "drawUnstyledText",
   streaming: "streaming",
+  "syntax-style": "syntaxStyle",
 
   // Diff
   view: "view",
@@ -1087,6 +1136,85 @@ const get_attribute = (
   return value != null ? Result$Ok(String(value)) : Result$Error(undefined);
 };
 
+// `instanceof` rather than a cast, so each assignment is checked against the
+// class's own accessor type and an upstream rename or retype fails `tsc`
+// instead of rendering unstyled. These four are the only classes with a
+// syntaxStyle. On EditBufferRenderable (base of Textarea and Input) it has no
+// visible effect today — native reads the table only for highlighted spans
+// and agnostic exposes no highlight API — but is set so it works when one is
+// added.
+//
+// Code's and Markdown's setters only mark dirty without requesting a frame;
+// for Markdown the frame is what pushes the new style into its child
+// CodeRenderables. The tail is for raw nodes and custom elements, unchecked
+// like every other dynamic write.
+const applySyntaxStyle = (node: TuiNode, style: SyntaxStyle): void => {
+  if (node instanceof CodeRenderable) {
+    node.syntaxStyle = style;
+    node.requestRender();
+  } else if (node instanceof MarkdownRenderable) {
+    node.syntaxStyle = style;
+    node.requestRender();
+  } else if (node instanceof DiffRenderable) {
+    node.syntaxStyle = style;
+  } else if (node instanceof EditBufferRenderable) {
+    node.syntaxStyle = style;
+  } else {
+    writeDynamicProp(node, "syntaxStyle", style);
+  }
+};
+
+// `attribute.define_syntax_style` sends `{name, styles}` as a property. The
+// record is rebuilt field by field from checked primitives rather than cast
+// from `unknown`, which also drops anything unexpected before it reaches
+// native.
+const readStyleDefinition = (value: unknown): StyleDefinitionInput => {
+  const definition: StyleDefinitionInput = {};
+  if (typeof value !== "object" || value === null) return definition;
+  if ("fg" in value && typeof value.fg === "string") definition.fg = value.fg;
+  if ("bg" in value && typeof value.bg === "string") definition.bg = value.bg;
+  if ("bold" in value && typeof value.bold === "boolean")
+    definition.bold = value.bold;
+  if ("italic" in value && typeof value.italic === "boolean")
+    definition.italic = value.italic;
+  if ("underline" in value && typeof value.underline === "boolean")
+    definition.underline = value.underline;
+  if ("dim" in value && typeof value.dim === "boolean")
+    definition.dim = value.dim;
+  return definition;
+};
+
+const readStyleMap = (
+  value: unknown,
+): Record<string, StyleDefinitionInput> => {
+  const styles: Record<string, StyleDefinitionInput> = {};
+  if (typeof value !== "object" || value === null) return styles;
+  for (const [capture, definition] of Object.entries(value)) {
+    styles[capture] = readStyleDefinition(definition);
+  }
+  return styles;
+};
+
+// The first definition of a name fills its table in place; later definitions
+// of the same name are ignored, and tables from the config are never touched.
+// clearCache() drops merges computed against the blank table.
+const resolveInlineSyntaxStyle = (value: unknown): SyntaxStyle => {
+  if (typeof value !== "object" || value === null) return defaultSyntaxStyle();
+  if (!("name" in value) || typeof value.name !== "string")
+    return defaultSyntaxStyle();
+
+  const style = syntaxStyleNamed(value.name);
+  if (PENDING_SYNTAX_STYLES.has(style) && "styles" in value) {
+    const styles = readStyleMap(value.styles);
+    for (const [capture, definition] of Object.entries(styles)) {
+      style.registerStyle(capture, definition);
+    }
+    style.clearCache();
+    PENDING_SYNTAX_STYLES.delete(style);
+  }
+  return style;
+};
+
 const set_attribute = (node: TuiNode, name: string, value: unknown): undefined => {
   // Guard: skip if node is destroyed
   if (isDestroyed(node)) {
@@ -1114,6 +1242,13 @@ const set_attribute = (node: TuiNode, name: string, value: unknown): undefined =
     }
     return undefined;
   }
+  // `syntaxStyle` crosses as a name, not an instance; the generic tail would
+  // assign the raw string. An undeclared name gets a blank table that a later
+  // `define_syntax_style` may fill.
+  if (prop === "syntaxStyle") {
+    applySyntaxStyle(node, syntaxStyleNamed(String(value ?? "")));
+    return undefined;
+  }
   const coerced = coerceValue(prop, value ?? "");
   writeDynamicProp(node, prop, coerced);
   return undefined;
@@ -1137,6 +1272,13 @@ const remove_attribute = (node: TuiNode, name: string): undefined => {
       .editorView?.setScrollMargin(0.2);
     return undefined;
   }
+  // The generic tail writes `null`, which CodeRenderable dereferences and
+  // swallows into a warning that drops highlighting for the node. Restore the
+  // unstyled default instead.
+  if (prop === "syntaxStyle") {
+    applySyntaxStyle(node, defaultSyntaxStyle());
+    return undefined;
+  }
   // Blur focused nodes before clearing, matching React/Solid behaviour.
   if (prop === "focusable" && node.blur) {
     node.blur();
@@ -1156,6 +1298,12 @@ const set_property = (node: TuiNode, name: string, value: unknown): undefined =>
         (value as (node: TuiNode) => void)(node);
       }
     });
+    return undefined;
+  }
+  // `define_syntax_style`. The reconciler deep-equals property values, so a
+  // theme rebuilt identically every render is diffed out before reaching here.
+  if (name === "syntaxStyle") {
+    applySyntaxStyle(node, resolveInlineSyntaxStyle(value));
     return undefined;
   }
   writeDynamicProp(node, name, value);
